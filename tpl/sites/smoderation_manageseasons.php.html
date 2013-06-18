@@ -1,0 +1,269 @@
+<div class="container">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php
+				$serieSID	= intval(@$_GET['id']);
+				$sql		= 'SELECT * FROM fs_series WHERE id='.intval($serieSID);
+				$result		= SQL::sendQuery($sql);
+				if(!mysql_num_rows($result))
+				{
+					header('Location: index.php?page=moderation.seriesoverview');
+					exit;
+				}
+				$serie = mysql_fetch_array($result);
+							
+				if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth())
+				{//Post actions
+					echo '<a name="top"></a>';
+					$serieSID	= intval(@$_GET['id']);
+					$sql		= 'SELECT * FROM fs_series_seasons WHERE sid='.intval($serieSID);
+					$result		= SQL::sendQuery($sql);
+					if(mysql_num_rows($result)) while($tmp_season = mysql_fetch_array($result)) $seasons[$tmp_season['ssid']] = $tmp_season;
+					
+					if(!strcmp($_POST['action'],'editseasons'))
+					{
+						foreach($_POST['editSeason'] as $season)
+						{
+							if($season['ssid'] >= 1 && $season['ssid'] <= $serie['seasons'] && $season['episodes'] >= 1 && $season['metascore'] >= 0)
+							{								
+								$tmp_data = array
+									(
+										'ssid'			=> intval($season['ssid']),
+										'episodes'		=> intval($season['episodes']),
+										'metascore'		=> intval($season['metascore']),
+										'description'	=> $season['description']
+									);
+								
+								if(!isset($seasons[$tmp_data['ssid']]))
+								{
+									$sql = 'DELETE FROM fs_series_seasons WHERE sid='.intval($serieSID).' AND ssid='.intval($tmp_data['ssid']);
+									SQL::sendQuery($sql);
+									$sql = 'INSERT INTO fs_series_seasons (sid,ssid,episodes,metascore,description) VALUES ('.intval($serieSID).','.intval($tmp_data['ssid']).','.intval($tmp_data['episodes']).','.intval($tmp_data['metascore']).',"'.mysql_real_escape_string($tmp_data['description']).'")';
+									SQL::sendQuery($sql);
+								}
+								else
+								{
+									$sql = 'UPDATE fs_series_seasons SET episodes='.intval($tmp_data['episodes']).',metascore='.intval($tmp_data['metascore']).',description="'.mysql_real_escape_string($tmp_data['description']).'" WHERE id='.$seasons[intval($season['ssid'])]['id'];
+									SQL::sendQuery($sql);
+								}
+								echo '<div class="alert alert-success"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Staffel geupdated!</strong> Du hast Staffel '.$season['ssid'].' geupdated</div>';
+								continue;
+							}
+							echo '<div class="alert alert-error"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Fehler!</strong> Staffel '.$season['ssid'].' konnte nicht geupdated werden</div>';
+						}
+					}
+					else if(!strcmp($_POST['action'],'addseasons'))
+					{
+						foreach($_POST['addSeason'] as $season)
+						{
+							$tmp_data = array
+								(
+									'ssid'			=> intval($season['ssid']),
+									'episodes'		=> intval($season['episodes']),
+									'metascore'		=> intval($season['metascore']),
+									'description'	=> $season['description']
+								);
+							if(isset($seasons[$tmp_data['ssid']]))
+							{
+								echo '<div class="alert alert-error"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Fehler!</strong> Staffel '.$season['ssid'].' konnte nicht hinzugefügt werden, da diese schon existiert</div>';
+								continue;
+							}
+							if($tmp_data['ssid'] == 0) continue;
+							if($tmp_data['ssid'] < 0 || $tmp_data['episodes'] < 0 || $tmp_data['metascore'] < 0)
+							{
+								echo '<div class="alert alert-error"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Fehler!</strong> Staffel '.$season['ssid'].' konnte nicht hinzugefügt werden, da einige eingegebene Daten fehlerhaft sind</div>';
+								continue;
+							}
+							if($tmp_data['ssid'] > $serie['seasons'])
+							{
+								echo '<div class="alert alert-error"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Fehler!</strong> Staffel '.$season['ssid'].' konnte nicht hinzugefügt werden, da die Serie maximal '.$serie['seasons'].' Staffeln hat. Bitte kontaktiere einen Administrator, der das Serienlimit erhöhen kann</div>';
+								continue;
+							}
+							$sql = 'INSERT INTO fs_series_seasons (sid,ssid,episodes,metascore,userrating,description) VALUES (';
+							$sql .= intval($serieSID).','.intval($tmp_data['ssid']).','.intval($tmp_data['episodes']).','.intval($tmp_data['metascore']).',0,"'.mysql_real_escape_string($tmp_data['description']).'"';
+							$sql .= ')';
+							SQL::sendQuery($sql);
+							echo '<div class="alert alert-success"> <button type="button" class="close" data-dismiss="alert">×</button><strong>Staffel hinzugefügt:</strong> Du hast die Staffel '.$season['ssid'].' hinzugefügt</div>';
+						}
+					}
+				}
+				else if(isset($_GET['action']) && isset($_GET['fs_token']) && USER::actionAuth())
+				{//Get actions
+					if(!strcmp($_GET['action'],'deleteseason'))
+					{
+						$deleteSSID = intval($_GET['ssid']);
+						if($deleteSSID >= 1)
+						{
+							$sql 	= 'DELETE FROM fs_series_seasons WHERE sid='.intval($serieSID).' AND ssid='.intval($deleteSSID);
+							SQL::sendQuery($sql);
+							echo '<div class="alert alert-success">
+								<button type="button" class="close" data-dismiss="alert">×</button>
+								<strong>Staffel gelöscht!</strong> Du hast die Staffel #'.$deleteSSID.' gelöscht
+							</div>';
+						}
+					}
+				}
+				echo '<div align="center"><img src="img/series/cut_covers/'.$serie['cover'].'_200x200.png" class="img-polaroid"/></div>
+				<h2>'.htmlspecialchars($serie['name']).'</h2>
+				<a name="editseasons"></a>
+				<div class="well">
+					<h3>Staffeln bearbeiten</h3>
+					<form method="post" action "index.php?page=smoderation.manageseasons&action=none>
+						<input type="hidden" name="fs_token"	value="'.USER::$user['fs_token'].'"/>
+						<input type="hidden" name="action"		value="editseasons"/>'; ?>
+						<table class="table table-hover">
+							<thead>
+								<tr>
+									<th style="width:20px">#</th>
+									<th style="width:70px">Staffel</th>
+									<th style="width:70px">Episodenzahl</th>
+									<th style="width:70px">Metascore</th>
+									<th>Beschreibung</th>
+								</tr>
+							</thead>
+							<tbody><?php
+								$sql	= 'SELECT * FROM fs_series_seasons WHERE sid='.intval($serieSID).' ORDER BY ssid ASC';
+								$result	= SQL::sendQuery($sql);
+								if(!mysql_num_rows($result))
+								{
+									for($i=1; $i<=$serie['seasons']; $i++)
+									{
+										echo '<tr class="error" id="editSeason_'.$i.'">
+											<input style="width:30px" name="editSeason['.$i.'][ssid]" type="hidden" value="'.$i.'"/>
+											<td></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$i.'" disabled/></div></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" name="editSeason['.$i.'][episodes]" type="text" value="0"/></div></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on"><i class="icon-fire"></i></span><input style="width:30px" name="editSeason['.$i.'][metascore]" type="text" value="0"/></div></td>
+											<td><textarea style="width:100%" name="editSeason['.$i.'][description]"></textarea></td>
+										</tr>';
+									}
+								}
+								else
+								{
+									$last_season = 0;
+									$loop = 0;
+									while($season = mysql_fetch_array($result))
+									{
+										if(++$last_season < $season['ssid'])
+										{
+											for($i=0; $i<($season['ssid']-$last_season); $i++)
+											{												
+												echo '<tr class="error" id="editSeason_'.$loop.'">
+													<input style="width:30px" name="editSeason['.$loop.'][ssid]" type="hidden" value="'.($last_season+$i).'"/>
+													<td></td>
+													<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.($last_season+$i).'" disabled/></div></td>
+													<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" name="editSeason['.$loop.'][episodes]" type="text" value="0"/></div></td>
+													<td><div style="width:30px" class="input-prepend"><span class="add-on"><i class="icon-fire"></i></span><input style="width:30px" name="editSeason['.$loop.'][metascore]" type="text" value="0"/></div></td>
+													<td><textarea style="width:100%" name="editSeason['.$loop.'][description]"></textarea></td>
+												</tr>';
+												$loop++;
+											}
+										}
+										echo '<tr id="editSeason_'.$loop.'">
+											<input style="width:30px" name="editSeason['.$loop.'][ssid]" type="hidden" value="'.$season['ssid'].'"/>
+											<td><a href="index.php?page=smoderation.manageseasons&id='.$serieSID.'&action=deleteseason&ssid='.$season['ssid'].'&fs_token='.USER::$user['fs_token'].'" onclick="return confirmAction('.$season['ssid'].')"><img src="img/icons/deleteS.png"/></a></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$season['ssid'].'" disabled/></div></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" name="editSeason['.$loop.'][episodes]" type="text" value="'.$season['episodes'].'"/></div></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on"><i class="icon-fire"></i></span><input style="width:30px" name="editSeason['.$loop.'][metascore]" type="text" value="'.$season['metascore'].'"/></div></td>
+											<td><textarea style="width:100%" name="editSeason['.$loop.'][description]">'.htmlspecialchars($season['description']).'</textarea></td>
+										</tr>';
+										$last_season = $season['ssid'];
+										$loop++;
+									}
+									if($last_season < $serie['seasons'])
+									{
+										for($i=($last_season+1); $i<=$serie['seasons']; $i++)
+										{
+											echo '<tr class="error" id="editSeason_'.$loop.'">
+												<input style="width:30px" name="editSeason['.$loop.'][ssid]" type="hidden" value="'.$i.'"/>
+												<td></td>
+												<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$i.'" disabled/></div></td>
+												<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" name="editSeason['.$loop.'][episodes]" type="text" value="0"/></div></td>
+												<td><div style="width:30px" class="input-prepend"><span class="add-on"><i class="icon-fire"></i></span><input style="width:30px" name="editSeason['.$loop.'][metascore]" type="text" value="0"/></div></td>
+												<td><textarea style="width:100%" name="editSeason['.$loop.'][description]"></textarea></td>
+											</tr>';
+											$loop++;
+										}
+									}
+								}
+							echo '
+							</tbody>
+						</table>
+						<button type="submit" class="btn btn-primary">Staffeln bearbeiten</button>
+					</form>
+					<script>
+						function confirmAction(ssid)
+						{
+							var confirmed = confirm("Möchtest du Staffel #"+ssid+" wirklich entfernen?");
+							return confirmed;
+						}
+					</script>
+				</div>
+				<a name="addseasons"></a>
+				<div class="well">
+					<h3>Staffel hinzufügen</h3>
+					<form method="post" action "index.php?page=smoderation.manageseasons&action=none>
+						<input type="hidden" name="fs_token"	value="'.USER::$user['fs_token'].'"/>
+						<input type="hidden" name="action"		value="addseasons"/>';
+						?>
+						<table class="table table-hover">
+							<thead>
+								<tr>
+									<th style="width:70px">Staffel</th>
+									<th style="width:70px">Episodenzahl</th>
+									<th style="width:70px">Metascore</th>
+									<th>Beschreibung</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr id="addSeason_0">
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" id="addSeason_0_id"		name="addSeason[0][ssid]" type="text" value="0"></div></td>
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" id="addSeason_0_episodes"	name="addSeason[0][episodes]" type="text" value="0"></div></td>
+									<td><div style="width:30px" class="input-prepend"><span class="add-on"><i class="icon-fire"></i></span><input style="width:30px" id="addSeason_0_metascore"	name="addSeason[0][metascore]" type="text" value="0"></div></td>
+									<td><textarea id="addSeason_0_description"	style="width:100%" name="addSeason[0][description]">Beschreibung folgt...</textarea></td>
+								</tr>
+							</tbody>
+						</table>
+						<div align="center"><button type="button" class="btn" onclick="addSeasonField(1);">Noch eine Staffel</button></div>
+						<button type="submit" class="btn btn-primary">Staffeln hinzufügen</button>
+					</form>
+					<script>
+						var staticID = 0
+						function addSeasonField(i)
+						{
+							staticID = staticID + 1
+							lastID = staticID - 1
+							var last_id_season = document.getElementById('addSeason_'+lastID+'_id');
+							this_season_id = parseInt(last_id_season.value) + 1
+							$("#addSeason_"+lastID).after(
+							<?php
+								echo "'<tr id=\"addSeason_'+staticID+'\">'+
+								'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">S</span><input style=\"width:30px\" id=\"addSeason_'+staticID+'_id\" name=\"addSeason['+staticID+'][ssid]\" type=\"text\" value=\"'+this_season_id+'\"></div></td>'+
+								'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">E</span><input style=\"width:30px\" id=\"addSeason_'+staticID+'_episodes\" name=\"addSeason['+staticID+'][episodes]\" type=\"text\" value=\"0\"></div></td>'+
+								'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\"><i class=\"icon-fire\"></i></span><input style=\"width:30px\" id=\"addSeason_'+staticID+'_metascore\" name=\"addSeason['+staticID+'][metascore]\" type=\"text\" value=\"0\"></div></td>'+
+								'<td><textarea id=\"addSeason_'+staticID+'_description\" style=\"width:100%\" name=\"addSeason['+staticID+'][description]\">Beschreibung folgt...</textarea></td>'+
+								'</tr>'";
+							?>
+							);
+						};
+					</script>
+				</div>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li><a href="index.php?page=moderation.seriesoverview"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li><a href="index.php?page=moderation.managelinks&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li><a href="index.php?page=moderation.manageepisodes&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>
+					<?php if(VALIDATION::canAccessPage(array('administration','editseries')))	echo '<li><a href="index.php?page=administration.editseries&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','addseries')))	echo '<li><a href="index.php?page=administration.addseries"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','cronjobs')))		echo '<li><a href="index.php?page=administration.cronjobs&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>'; ?>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>

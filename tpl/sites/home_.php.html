@@ -1,0 +1,196 @@
+<div class="container">
+	<div class="well">
+		<div class="alert alert-info">
+			<button type="button" class="close" data-dismiss="alert">×</button>
+			<strong>Info:</strong> JavaScript und Cookies müssen aktiviert sein
+		</div>		
+		<div class="row-fluid">
+			<div class="span12">
+				<div class="well">
+					<h3>Willkommen bei free-series.de</h3>
+					Hier kannst du die besten Serien in hervoragender Qualität <strong>kostenlos</strong> anschauen. 
+					Um den vollen Funktionsumfang unserer Plattform uneingeschränkt nutzen zu können, empfehlen wir dir einen <a href="#">kostenlosen Account</a> zu erstellen.
+					Damit kannst du Serien bewerten und sogar als Favoriten markieren. Du kannst dich von überall einloggen und siehst somit direkt, welche Episoden du
+					schon angeguckt hast und welche noch nicht. Außerdem bietet das Forum eine Diskussionsplattform, auf der du dich mit anderen Benutzern austauschen
+					und dich über neue Episoden oder Serienstarts informieren kannst.<br/><br/>
+					<strong>Übrigens:</strong> wir suchen noch Verstärkung für unser nettes Team. Falls du Interesse und Zeit hast melde dich bitte bei einem Administrator oder schreibe
+					eine Mail an admin@free-series.de Wir freuen uns auf dich :)
+				</div>
+			</div>
+		</div>
+		<div class="row-fluid">
+			<div class="span6">
+				<?php
+				$sql	= 'SELECT * FROM fs_blog ORDER BY timestamp DESC LIMIT 0,5';
+				$result	= SQL::sendQuery($sql);
+				if(mysql_num_rows($result) >= 1)
+				{
+				?>
+				<div class="row-fluid">
+					<div class="span12">
+						<div class="well">
+							<h3>News</h3>
+							<?php
+								while($entry = mysql_fetch_array($result))
+								{
+									echo '<div class="row-fluid">
+										<div class="span4">
+											<div class="row-fluid blog">
+												<div class="date">
+													<div class="published">
+														<div class="day pull-left">'.gmdate('d',$entry['timestamp']).'</div>
+														<div class="month pull-right">'.gmdate('M Y',$entry['timestamp']).'</div>
+														<div class="clearfix"></div>
+													</div>
+												</div>
+												<div class="author"><a href="/forum/index.php?page=User&userID='.$entry['userID'].'">von '.htmlspecialchars($entry['userName']).'</a></div>
+											</div>
+										</div>
+										<div class="span8">
+											<h3>'.htmlspecialchars($entry['title']).'</h3>
+											<p>'.htmlspecialchars(substr($entry['content'],0,200));
+											if(strlen($entry['content']) > 200) echo '...';
+											echo '</p>
+										</div>
+									</div>';
+								}
+							?>
+						</div>
+					</div>
+				</div>
+				<?php
+				}
+				?>
+			</div>
+			<div class="span6">
+				<div class="row-fluid">
+					<div class="well">
+						<h3>Statistiken</h3>
+						<?php
+							$sql	= 'SELECT * FROM fs_stats';
+							$result	= SQL::sendQuery($sql);
+							while($tmp_stat = mysql_fetch_array($result)) $stats[$tmp_stat['name']] = $tmp_stat;
+						?>
+						<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+						<script type="text/javascript">
+						google.load("visualization", "1", {packages:["corechart"]});
+						google.setOnLoadCallback(drawChart);
+						function drawChart()
+						{
+							var data = google.visualization.arrayToDataTable([
+								['Teil', 'Anzahl'],
+								['Serien',		<?php echo $stats['fs.series.count']['wert']; ?>],
+								['Staffeln',	<?php echo $stats['fs.seasons.count']['wert']; ?>],
+								['Episoden',	<?php echo $stats['fs.episodes.count']['wert']; ?>],
+								['Links',		<?php echo $stats['fs.episodes.links.count']['wert']; ?>]
+							
+							]);
+							var options = {title: 'Statistik'};
+							var chart = new google.visualization.LineChart(document.getElementById('chart_div'));
+							chart.draw(data, options);
+						}
+						</script>
+						<div id="chart_div"></div>
+						<?php
+						$sql	= 'SELECT * FROM fs_stats';
+						$result	= SQL::sendQuery($sql);
+						while($tmp_stat = mysql_fetch_array($result)) $stats[$tmp_stat['name']] = $tmp_stat;
+						echo '<table style="width:100%">
+							<tr>
+								<td><strong>Anzahl Serien</strong></td>
+								<td>'.$stats['fs.series.count']['wert'].'</td>
+								<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+								<td><strong>Anzahl Staffeln</strong></td>
+								<td>'.$stats['fs.seasons.count']['wert'].'</td>
+							</td>
+							<tr>
+								<td><strong>Anzahl Episoden</strong></td>
+								<td>'.$stats['fs.episodes.count']['wert'].'</td>
+								<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+								<td><strong>Anzahl Links</strong></td>
+								<td>'.$stats['fs.episodes.links.count']['wert'].'</td>
+							</td>
+							<tr>
+								<td><strong>Angebotene Hoster</strong></td>
+								<td>'.$stats['fs.hosters.count']['wert'].'</td>
+								<td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+								<td><strong>Registrierungen</strong></td>
+								<td>'.$stats['fs.accounts.count']['wert'].'</td>
+							</td>
+						</table>';
+						?>
+					</div>
+				</div>
+				<div class="row-fluid">
+					<div class="well">
+						<h3>Toplinker</h3>
+						<table class="table table-hover">
+						<?php
+							$sql		= 'SELECT userID,userOption54,userOption56 FROM wcf'.WCF_N.'_user_option_value ORDER BY userOption54 DESC, userID ASC LIMIT 0,5';
+							$result		= SQL::sendQuery($sql);
+							$user		= array();
+							$user_stack	= array();
+							while($tmp_entry = mysql_fetch_array($result))
+							{
+								$user_stack[] = $tmp_entry['userID'];
+								$users[$tmp_entry['userID']] = array(
+										'userID'	=> $tmp_entry['userID'],
+										'links'		=> $tmp_entry['userOption54'],
+										'reports'	=> $tmp_entry['userOption56']
+									);
+							}
+							$sql	= 'SELECT userID,username,languageID FROM wcf'.WCF_N.'_user WHERE userID IN ('.join(',',$user_stack).')';
+							$result	= SQL::sendQuery($sql);
+							while($tmp_user = mysql_fetch_array($result))
+							{
+								$users[$tmp_user['userID']]['username']	= $tmp_user['username'];
+								$users[$tmp_user['userID']]['languageID']= $tmp_user['languageID'];
+							}
+							
+							$loop = 0;
+							foreach($users as $user)
+							{
+								$loop++;
+								echo '<tr><td>';
+								if($loop == 1)		echo '<img src="img/icons/stargold16x16.png"/>';
+								else if($loop == 2) echo '<img src="img/icons/starsilver16x16.png"/>';
+								else if($loop == 3) echo '<img src="img/icons/starbronze16x16.png"/>';
+								else				echo '#'.$loop;
+								echo '</td>
+									<td><img src="img/icons/'.LANG::$languages[$user['languageID']]['icon_name'].'.png"/> <a href="forum/index.php?page=User&userID='.$user['userID'].'">'.htmlspecialchars($user['username']).'</a></td>
+									<td>'.$user['links'].' / '.$user['reports'].'</td>
+								</td>';
+							}
+						?>
+						</table>
+					</div>
+				</div>
+				<?php
+				$sql	= 'SELECT id,name FROM fs_series ORDER BY timestamp DESC LIMIT 0,5';
+				$result	= SQL::sendQuery($sql);
+				if(mysql_num_rows($result) >= 1)
+				{
+				?>
+				<div class="row-fluid">
+					<div class="well">
+						<h3>Neuste Serien</h3>
+						<table class="table table-hover">
+						<?php
+							while($entry = mysql_fetch_array($result))
+							{
+								echo '<tr>
+									<td>#'.$entry['id'].'</td>
+									<td><a href="index.php?page=series.season&id='.$entry['id'].'">'.htmlspecialchars($entry['name']).'</a></td>
+								</tr>';
+							}
+						?>
+						</table>
+					</div>
+				</div>
+				<?php
+				}
+				?>
+			</div>
+		</div>
+	</div>
+</div>

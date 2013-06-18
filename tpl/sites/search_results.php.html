@@ -1,0 +1,124 @@
+<div class="container">
+	<div class="well">
+		<div class="row-fluid">
+			<div class="span12">
+				<div class="row-fluid">
+					<div class="well">
+						<h3>Zusammenfassung</h3>
+						<?php
+						if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth() && !strcmp($_POST['action'],'search'))
+						{
+							$genres = array();
+							$sql	= 'SELECT * FROM fs_categories';
+							$result	= SQL::sendQuery($sql);
+							while($tmp = mysql_fetch_array($result)) $genres[$tmp['id']] = $tmp;								
+							$search = array
+								(
+									'serieName'			=> substr($_POST['serieName'],0,64),
+									'serieDescription'	=> substr($_POST['serieDescription'],0,256),
+									'serieProduction'	=> array_filter(explode('-',$_POST['serieProduction'])),
+									'serieGenres'		=> array_filter(array_unique($_POST['serieGenres'])),
+									'serieActors'		=> array_filter(array_unique($_POST['serieActors'])),
+									'serieDirectors'	=> array_filter(array_unique($_POST['serieDirectors'])),
+									'serieAuthors'		=> array_filter(array_unique($_POST['serieAuthors'])),
+									'serieProducers'	=> array_filter(array_unique($_POST['serieProducers']))
+								);
+							$can_search = false;
+							if(!empty($search['serieName']) || !empty($search['serieDescription']) || sizeof($search['serieProduction']) > 1 || !empty($search['serieProduction'][0]))		$can_search = true;
+							if(sizeof($search['serieGenres']) > 1 || @$search['serieGenres'][0] != 0 || !empty($search['serieActors'][0]) || sizeof($search['serieDirectors']) > 1 || !empty($search['serieDirectors'][0]))	$can_search = true;
+							if(sizeof($search['serieAuthors']) > 1 || !empty($search['serieAuthors'][0]) || sizeof($search['serieProducers']) > 1 || !empty($search['serieProducers'][0]))	$can_search = true;
+							if(!$can_search)
+							{
+								header('Location: http://free-series.de/index.php?page=search.series');
+								exit;
+							}
+							$short_url = substr(md5(time().@USER::$user['fs_token']),0,16);
+							echo '<table class="table table-condensed">
+								<tr'; if(empty($search['serieName']))echo' class="error"'; echo '>
+									<td><strong>Name der Serie</strong></td>
+									<td>'.htmlspecialchars($search['serieName']).'</td>
+								</tr>
+								<tr'; if(empty($search['serieDescription']))echo' class="error"'; echo '>
+									<td><strong>Beschreibung</strong></td>
+									<td>'.htmlspecialchars($search['serieDescription']).'</td>
+								</tr>
+								<tr'; if(sizeof($search['serieProduction']) <= 1 && empty($search['serieProduction'][0]))echo' class="error"'; echo '>
+									<td><strong>Produktionszeit</strong></td>
+									<td>'.intval(@$search['serieProduction'][0]).'-'.intval(@$search['serieProduction'][1]).'</td>
+								</tr>
+								<tr'; if(sizeof($search['serieGenres']) <= 1 && empty($search['serieGenres'][0]))echo' class="error"'; echo '>
+									<td><strong>Genres</strong></td>
+									<td>';
+										if(sizeof($search['serieGenres']) > 1 || !empty($search['serieGenres'][0])) foreach($search['serieGenres'] as $genre) echo '<span class="label">'.$genres[intval($genre)]['name'].'</span> ';
+									echo '</td>
+								</tr>
+								<tr'; if(sizeof($search['serieActors']) <= 1 && empty($search['serieActors'][0]))echo' class="error"'; echo '>
+									<td><strong>Darsteller</strong></td>
+									<td>'.htmlspecialchars(join(', ',@$search['serieActors'])).'</td>
+								</tr>
+								<tr'; if(sizeof($search['serieDirectors']) <= 1 && empty($search['serieDirectors'][0]))echo' class="error"'; echo '>
+									<td><strong>Regisseure</strong></td>
+									<td>'.htmlspecialchars(join(', ',@$search['serieDirectors'])).'</td>
+								</tr>
+								<tr'; if(sizeof($search['serieAuthors']) <= 1 && empty($search['serieAuthors'][0]))echo' class="error"'; echo '>
+									<td><strong>Autoren</strong></td>
+									<td>'.htmlspecialchars(join(', ',@$search['serieAuthors'])).'</td>
+								</tr>
+								<tr'; if(sizeof($search['serieProducers']) <= 1 && empty($search['serieProducers'][0]))echo' class="error"'; echo '>
+									<td><strong>Produzenten</strong></td>
+									<td>'.htmlspecialchars(join(', ',@$search['serieProducers'])).'</td>
+								</tr>
+							</table>
+						<h3>Ergebnisse:</h3>';						
+							$sql	= 'SELECT * FROM fs_series WHERE name LIKE "%'.mysql_real_escape_string(@$search['serieName']).'%" AND description LIKE "%'.mysql_real_escape_string(@$search['serieDescription']).'%" ';
+							if(sizeof($search['serieProduction']) >= 1 && !empty($search['serieProduction'][0]))$sql .= 'AND ((production_from <= '.intval(@$search['serieProduction'][0]).' AND '.intval(@$search['serieProduction'][0]).' <= production_to) OR (production_from <= '.intval(@$search['serieProduction'][1]).' AND '.intval(@$search['serieProduction'][1]).' <= production_to)) ';
+							if(sizeof($search['serieGenres']) >= 1 && !empty($search['serieGenres'][0]))		foreach($search['serieGenres'] as $genre)		$sql .= 'AND categories LIKE "%;'.intval($genre).';%" ';
+							if(sizeof($search['serieActors']) >= 1 && !empty($search['serieActors'][0]))		foreach($search['serieActors'] as $actor)		$sql .= 'AND actors LIKE "%'.mysql_real_escape_string($actor).'%" ';
+							if(sizeof($search['serieDirectors']) >= 1 && !empty($search['serieDirectors'][0]))	foreach($search['serieDirectors'] as $director) $sql .= 'AND director LIKE "%'.mysql_real_escape_string($director).'%" ';
+							if(sizeof($search['serieAuthors']) >= 1 && !empty($search['serieAuthors'][0]))		foreach($search['serieAuthors'] as $author)		$sql .= 'AND author LIKE "%'.mysql_real_escape_string($author).'%" ';
+							if(sizeof($search['serieProducers']) >= 1 && !empty($search['serieProducers'][0]))	foreach($search['serieProducers'] as $producer) $sql .= 'AND producer LIKE "%'.mysql_real_escape_string($producer).'%" ';
+							$result = SQL::sendQuery($sql);
+							$hits	= mysql_num_rows($result);
+							$sql = 'INSERT INTO fs_search (short_url,serieName,serieProductiontime,serieGenres,serieDescription,serieActors,serieProducers,serieDirectors,timestamp,userID,results) VALUES ("'.mysql_real_escape_string($short_url).'","'.mysql_real_escape_string($search['serieName']).'","'.intval(@$search['serieProduction'][0]).'-'.intval(@$search['serieProduction'][0]).'",";'.mysql_real_escape_string(join(';',@$search['serieGenres'])).';","'.mysql_real_escape_string(@$search['serieDescription']).'",";'.mysql_real_escape_string(join(';',@$search['serieActors'])).';",";'.mysql_real_escape_string(join(';',@$search['serieProducers'])).';",";'.mysql_real_escape_string(join(';',@$search['serieDirectors'])).';",'.time().','.intval(@USER::$user['userID']).','.intval($hits).')';
+							SQL::sendQuery($sql);
+							if($hits)
+							{
+								echo '<div class="alert alert-success">
+									<button type="button" class="close" data-dismiss="alert">×</button>
+									<strong>Treffer!</strong> Es stimmen '.$hits.' Serien mit deiner Suche überein
+								</div>';
+								echo '<table class="table table-hover">';
+								while($serie = mysql_fetch_array($result))
+								{
+										
+									echo '<tr>
+										<td>#'.$serie['id'].'</td>
+										<td><a href="index.php?page=series.season&id='.$serie['id'].'">'.htmlspecialchars($serie['name']).'</a></td>
+										<td><img src="img/rating'.round($serie['userrating']).'.png"/></td>
+										<td>'.$serie['production_from'].'-'.$serie['production_to'].'</td>
+										<td>S'.$serie['seasons'].'E'.$serie['episodes'].'</td>
+										<td>';
+											foreach(array_filter(array_unique(explode(';',$serie['categories']))) as $genre) echo '<span class="label">'.$genres[intval($genre)]['name'].'</span> ';
+										echo '</td>
+										<td><a href="#" class="tooltip-activate" data-placement="left" title="'.htmlspecialchars($serie['description']).'">'.htmlspecialchars(substr($serie['description'],0,50)).'...</a></td>
+									</tr>';
+								}
+								echo '</table>';
+							}
+							else echo '<div class="alert alert-error">
+								<button type="button" class="close" data-dismiss="alert">×</button>
+								<strong>Keine Treffer!</strong> Leider ergab die Suche keine Treffer :(
+							</div>';
+						}
+						else
+						{
+							header('Location: http://free-series.de/index.php?page=search.series');
+							exit;
+						}
+						?>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

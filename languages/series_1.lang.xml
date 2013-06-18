@@ -1,0 +1,22 @@
+<?xml version='1.0' standalone='yes'?>
+<data>
+	<general>
+		<series><![CDATA[Serien]]></series>
+		<seasons><![CDATA[Staffeln]]></seasons>
+		<episodes><![CDATA[Episoden]]></episodes>
+		<empty_fav><![CDATA[<strong>Hinweis:</strong> Du hast momentan keine Serien favoritisiert.]]></empty_fav>
+	</general>
+	<presentation>
+		<heading><![CDATA[Darstellung]]></heading>
+		<show_method><![CDATA[Kachel]]></show_method>
+		<show_method><![CDATA[Liste]]></show_method>
+		<show_method><![CDATA[Cover]]></show_method>
+	</presentation>
+	<sort>
+		<name><![CDATA[Sortieren]]></name>
+		<sortmethod><![CDATA[Alphabetisch]]></sortmethod>
+		<sortmethod><![CDATA[Genre]]></sortmethod>
+		<sortmethod><![CDATA[Bewertung]]></sortmethod>
+		<sortmethod><![CDATA[Favoriten]]></sortmethod>
+	</sort>
+</data>

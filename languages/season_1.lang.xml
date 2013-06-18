@@ -1,0 +1,32 @@
+<?xml version='1.0' standalone='yes'?>
+<data>
+	<error>
+		<serie_missing><![CDATA[<strong>Fehler!</strong> Die Serie existiert nicht.]]></serie_missing>
+		<season_missing><![CDATA[<strong>Fehler!</strong> Die Staffel fehlt zur Zeit.]]></season_missing>
+		<no_episodes><![CDATA[<strong>Hinweis:</strong> Es gibt zur Zeit keine Episoden in dieser Staffel.]]></no_episodes>
+	</error>
+	<general>
+		<cover><![CDATA[Cover]]></cover>
+		<userrating><![CDATA[Benutzerwertung]]></userrating>
+		<production><![CDATA[Produktion]]></production>
+		<actors><![CDATA[Darsteller]]></actors>
+		<director><![CDATA[Regisseur]]></director>
+		<authors><![CDATA[Autoren]]></authors>
+		<producer><![CDATA[Produzenten]]></producer>
+		<description><![CDATA[Beschreibung]]></description>
+		<more_text><![CDATA[weiter]]></more_text>
+		<close><![CDATA[Schließen]]></close>
+	</general>
+	<episode>
+		<status><![CDATA[Status]]></status>
+		<title><![CDATA[Titel]]></title>
+		<hoster><![CDATA[Hoster]]></hoster>
+		<status_viewed><![CDATA[geguckt]]></status_viewed>
+		<status_new><![CDATA[neu]]></status_new>
+		<no_hosters><![CDATA[Keine Hoster verfügbar]]></no_hosters>
+	</episode>
+	<stream>
+		<title><![CDATA[Stream]]></title>
+	</stream>
+	<back_to_series><![CDATA[Zurück zur Serienübersicht]]></back_to_series>
+</data>

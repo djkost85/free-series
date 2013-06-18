@@ -1,0 +1,110 @@
+<div class="container" style="width:95%">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php
+				if(isset($_GET['action']) && USER::actionAuth())
+				{
+					if(!strcmp($_GET['action'],'cronjob.recalculate'))
+					{
+						echo '<div class="alert alert-success">
+							<button type="button" class="close" data-dismiss="alert">×</button>
+							<strong>Cronjob erfolgreich!</strong> Du hast die Serieninformationen geupdated
+						</div>';
+					}
+				}
+				?>
+				<table class="table table-hover">
+					<thead>
+						<tr>
+							<th>#</th>
+							<th>Name</th>
+							<th>S/E</th>
+							<th>Genres</th>
+							<th>Produktion</th>
+							<th>Darsteller</th>
+							<th>Regisseure</th>
+							<th>Autoren</th>
+							<th>Produzenten</th>
+							<th>Cover</th>
+							<th>Beschreibung</th>
+						</tr>
+						</thead>
+					<tbody>
+						<?php
+						$sql	= 'SELECT * FROM fs_series ORDER BY id ASC';
+						$result	= SQL::sendQuery($sql);
+						while($serie = mysql_fetch_array($result))
+						{
+							echo '<tr>
+								<td>										
+									<div class="btn-group">
+										<button class="btn btn-warning dropdown-toggle" data-toggle="dropdown">#'.$serie['id'].' <span class="caret"></span></button>
+										<ul class="dropdown-menu">';
+											if(VALIDATION::canAccessPage(array('administration','editseries'))) echo '<li><a href="index.php?page=administration.editseries&id='.$serie['id'].'">Serie bearbeiten</a></li>';
+											if(VALIDATION::canAccessPage(array('smoderation','manageseasons'))) echo '<li><a href="index.php?page=smoderation.manageseasons&id='.$serie['id'].'#editseasons">Staffeln verwalten</a></li>';
+											if(VALIDATION::canAccessPage(array('moderation','editepisodes')))	echo '<li><a href="index.php?page=moderation.manageepisodes&id='.$serie['id'].'#editepisodes">Episoden verwalten</a></li>';
+											if(VALIDATION::canAccessPage(array('moderation','managelinks')))	echo '<li><a href="index.php?page=moderation.managelinks&id='.$serie['id'].'#editepisodes">Links verwalten</a></li>';
+											if(VALIDATION::canAccessPage(array('administration','cronjobs')))	echo '<li><a href="index.php?page=administration.cronjobs&id=0='.$serie['id'].'">Episoden und Bewertung neu errechnen</a></li>';
+										echo '</ul>
+									</div>
+								</td>
+								<td>'.htmlspecialchars($serie['name']).'</td>
+								<td>S'.$serie['seasons'].'E'.$serie['episodes'].'</th>
+								<td>';
+								foreach(explode(';',$serie['categories']) as $g_id)
+								{
+									if(empty($g_id)) continue;
+									echo '<span class="badge badge-info">'.@$genres[$g_id]['name'].'</span> ';
+								}
+								echo '</td>
+								<td>'.$serie['production_from'].'-'.$serie['production_to'].'</td><td>';
+								foreach(explode(';',$serie['actors']) as $actor)
+								{
+									if(empty($actor)) continue;
+									echo '<span class="badge badge-info">'.$actor.'</span> ';
+								}
+								echo '</td><td>';
+								foreach(explode(';',$serie['director']) as $director)
+								{
+									if(empty($director)) continue;
+									echo '<span class="badge badge-info">'.$director.'</span> ';
+								}
+								echo '</td><td>';
+								foreach(explode(';',$serie['author']) as $author)
+								{
+									if(empty($author)) continue;
+									echo '<span class="badge badge-info">'.$author.'</span> ';
+								}
+								echo '</td><td>';
+								foreach(explode(';',$serie['producer']) as $producer)
+								{
+									if(empty($producer)) continue;
+									echo '<span class="badge badge-info">'.$producer.'</span> ';
+								}
+								echo '</td><td>';
+								echo '</td>
+								<td><a href="#" class="tooltip-activate" data-placement="left" title="'.htmlspecialchars($serie['description']).'">'.htmlspecialchars(substr($serie['description'],0,32)).'...</a></td>
+							</tr>';
+						}
+						?>
+					</tbody>
+				</table>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li><a href="index.php?page=moderation.managelinks&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li><a href="index.php?page=moderation.manageepisodes<?php echo intval(@$serieSID); ?>"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<?php if(VALIDATION::canAccessPage(array('smoderation','manageseasons')))	echo '<li><a href="index.php?page=smoderation.manageseasons&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','editseries')))	echo '<li><a href="index.php?page=administration.editseries&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','addseries')))	echo '<li><a href="index.php?page=administration.addseries"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','cronjobs')))		echo '<li><a href="index.php?page=administration.cronjobs&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>'; ?>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>

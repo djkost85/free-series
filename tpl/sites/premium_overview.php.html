@@ -1,0 +1,73 @@
+<div class="container">
+	<div class="row-fluid pricing">
+		<div class="span4">
+			<div class="plan">
+				<h3>Bronze<span>free</span></h3>
+				<?php if(!USER::isLoggedIn()) echo '<a class="btn btn-primary" href="forum/index.php?page=Register">Registrieren</a>'; ?>
+				<ul>
+					<li><b>Keine</b> Werbung</li>
+					<li><b>Serien</b> bewerten</li>
+					<li><b>Serien</b> favoritisieren</li>
+					<li><b>Eigene</b> Statistiken</li>
+					<li><b>Diskussionen</b> im Forum</li>
+				</ul>
+			</div>
+		</div>
+		<div class="span4">
+			<div class="plan most-popular">
+				<h3>Gold<span>25€</span></h3>
+				<a class="btn btn-primary" href="#modalPremiumGold" data-toggle="modal">Kaufen</a>
+				<ul>
+					<li><b>Keine</b> Begrenzungen</li>
+					<li><b>Credits</b> als Unterstützer</li>
+					<li><b>Voller Zugriff</b> auf die API</li>
+				</ul>
+			</div>
+		</div>
+		<div class="margin-top-10 visible-phone"></div>
+		<div class="span4">
+			<div class="plan">
+				<h3>Silber<span>free</span></h3>
+				<a class="btn btn-primary" href="#modalPremiumSilber" data-toggle="modal">Aktivieren</a>   
+				<ul>
+					<li><b>Keine</b> Begrenzungen</li>
+					<li><b>Unterstützer</b> von free-series.de</li>
+					<li><b>VIP</b>-Rang im Forum</li>
+				</ul>
+			</div>
+		</div>
+		<div class="margin-top-10 visible-phone"></div>
+	</div>
+	
+	<div id="modalPremiumGold" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modalPremiumGoldLabel" aria-hidden="true">
+		<div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+			<h3 id="modalPremiumGoldLabel">Premium - Gold</h3>
+		</div>
+		<div class="modal-body">
+			<p>
+				Als free-series Goldnutzer unterstützt du dieses Projekt finanziell. Dadurch werden Kosten für Server, Domains und Wartung gedeckt. Außerdem unterstützt du das Team und sorgst mit deiner Spende für weitere Features, die unsere Entwickler dann implementieren werden. Wenn du den goldenen Premiumrang kaufst, erhältst du Zugriff auf die fs_API und kannst mithilfe unserer API sogar eigene Anwendungen programmieren. Als Dankeschön erhältst du ebenfalls vollen Zugriff auf alle Premiumfeatures - lebenslänglich!
+			</p>
+		</div>
+		<div class="modal-footer">
+			<button class="btn" data-dismiss="modal" aria-hidden="true">Schließen</button>
+		</div>
+	</div>
+	<div id="modalPremiumSilber" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modalPremiumSilberLabel" aria-hidden="true">
+		<div class="modal-header">
+			<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+			<h3 id="modalPremiumSilberLabel">Premium - Silber</h3>
+		</div>
+		<div class="modal-body">
+			<p>
+				Der silberne Premiumrang ist völlig kostenlos, das einzige, was du dafür tun musst ist das Hinzufügen von Links für Episoden. Wenn deine Links vom Team erfolgreich geprüft wurden erhältst du Aktivitätspunkte, die du dann für diesen Premiumrang eintauschen kannst. Durch eine Aktivierung hast du nun für 7 Tage Zugriff auf die Premiumfeatures.<br/>
+				<div align="center"><a class="btn btn-primary" href="#">Jetzt aktivieren</a></div>
+			</p>
+		</div>
+		<div class="modal-footer">
+			<button class="btn" data-dismiss="modal" aria-hidden="true">Schließen</button>
+		</div>
+	</div>
+							
+							
+</div>

@@ -1,0 +1,202 @@
+<?php
+	LANG::loadFile('series','series');
+	$order = 1;
+	if(isset($_COOKIE['serie_order']))	$order = intval($_COOKIE['serie_order']);
+	if(isset($_GET['order']))			$order = intval($_GET['order']);
+	if($order < 0 || $order > 3)		$order = 1;
+	if($order == 3 && (!USER::isLoggedIn() || !USER::hasUserPermission('canFavoriteSeries'))) $order = 1;
+	setcookie('serie_order',intval($order),time()+(60*60*24*7));//7 Tage
+	
+	$show = 0;
+	if(isset($_COOKIE['serie_show']))	$show = intval($_COOKIE['serie_show']);
+	if(isset($_GET['show']))			$show = intval($_GET['show']);
+	if($show < 0 || $show > 2)			$show = 0;
+	setcookie('serie_show',intval($show),time()+(60*60*24*7));//7 Tage
+	if($show == 1)	define('SERIES_PER_ROW',5);
+	else			define('SERIES_PER_ROW',4);
+	define('SERIES_SPAN',floor(12/SERIES_PER_ROW));
+	
+	$fav_stack = array(0);
+	if(USER::isLoggedIn() && USER::hasUserPermission('canFavoriteSeries'))
+	{
+		$sql = 'SELECT sid FROM fs_user_favorites WHERE userID='.USER::$user['userID'];
+		$result	= SQL::sendQuery($sql);
+		while($row = mysql_fetch_row($result)) if($row[0] != 0) $fav_stack[] = $row[0];
+	}
+	
+	echo '<div class="container" style="width:80%">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">';
+				$loop = -1;				
+				if($order != 1)
+				{//Alphabetisch, Bewertung, Favorit
+					echo '<div class="row-fluid">';
+					$sql		= 'SELECT * FROM fs_categories ORDER BY name ASC';
+					$result		= SQL::sendQuery($sql);
+					$categories	= array();
+					while($row = mysql_fetch_array($result)) $categories[] = $row['name'];					
+					if($order == 3)		$sql = 'SELECT * FROM fs_series WHERE id IN ('.join(',',$fav_stack).') ORDER BY name ASC';//Favorit
+					else if($order == 2)$sql = 'SELECT * FROM fs_series ORDER BY metascore DESC, name ASC';//Bewertung
+					else				$sql = 'SELECT * FROM fs_series ORDER BY name ASC';//Alphabetisch
+					$result = SQL::sendQuery($sql);
+					if(!mysql_num_rows($result)) echo '<div class="alert alert-info">'.LANG::getData('series')->general->{'empty_fav'}.'</div>';
+					else
+					{
+						$series = array();
+						while($row = mysql_fetch_array($result)) $series[] = $row;
+						$first_letter = '0';
+						$last_scorelevel = 4;
+						foreach($series as $serie)
+						{
+							if(++$loop >= SERIES_PER_ROW)
+							{
+								$loop = 0;
+								echo '</div><br/><div class="row-fluid">';
+							}
+							if(($order != 2 && $order != 3) && $serie['name'][0] != $first_letter)
+							{
+								$loop = 0;
+								$first_letter = $serie['name'][0];
+								echo '</div><br/><div class="alert alert-success"><h3>'.$first_letter.'</h3></div><div class="row-fluid">';
+							}
+							else if($order == 2)
+							{
+								$scorelevel = 0;
+								if($serie['metascore'] <= 0)		$scorelevel = 0;
+								else if($serie['metascore'] <= 40)	$scorelevel = 1;
+								else if($serie['metascore'] <= 60)	$scorelevel = 2;
+								else if($serie['metascore'] <= 100)	$scorelevel = 3;
+								$scorelevel_alert = array('info','error','warning','success');								
+								if($scorelevel != $last_scorelevel)
+								{
+									$loop = 0;
+									if($last_scorelevel != 4) echo '</div>';
+									echo '</div><div class="alert alert-'.$scorelevel_alert[$scorelevel].'"><div class="row-fluid">';
+									$last_scorelevel = $scorelevel;
+								}
+							}
+							
+							echo '<div class="span'.SERIES_SPAN.'"><a href="index.php?page=series.season&id='.intval($serie['id']).'" role="button" class="btn">';
+								if($show == 2)
+								{
+									if(file_exists('img/series/cut_covers/'.$serie['cover'].'_200x200.png')) echo '<img src="img/series/cut_covers/'.$serie['cover'].'_200x200.png"/>';
+									else echo '<img src="img/series/cut_covers/no_cover_200x200.png"/>';
+								}
+								else if($show == 1)
+								{
+									echo '<h3>'.$serie['name'];
+									if(in_array($serie['id'],$fav_stack)) echo ' <img src="img/icons/ratingS.png"/>';
+									echo '</h3>';
+								}
+								else
+								{
+									echo '<h3>'.$serie['name'];
+									if(in_array($serie['id'],$fav_stack)) echo ' <img src="img/icons/ratingS.png"/>';
+									echo '</h3>
+										<p>
+											'.$serie['seasons'].' '.LANG::getData('series')->general->seasons.', '.$serie['episodes'].' '.LANG::getData('series')->general->episodes.'<br/>
+											Meta <span class="badge badge-';
+											if(intval($serie['metascore']) <= 0)		echo 'info">unrated';
+											else if(intval($serie['metascore']) <= 40)	echo 'important">'.intval($serie['metascore']).'/100';
+											else if(intval($serie['metascore']) <= 60)	echo 'warning">'.intval($serie['metascore']).'/100';
+											else echo 'success">'.intval($serie['metascore']).'/100';
+											echo '</span> User <img src="img/rating'.round($serie['userrating']).'.png"/>
+										</p>';
+								}
+								echo '</a>
+							</div>';
+						}
+						if($order == 2 && $last_scorelevel != 4) echo '</div>';
+					}
+					echo '</div>';
+				}
+				else
+				{//Nach Genres
+					$sql	= 'SELECT * FROM fs_series';
+					$result = SQL::sendQuery($sql);
+					$series	= array();
+					while($tmp_serie = mysql_fetch_array($result)) $series[$tmp_serie['id']] = $tmp_serie;
+					
+					$sql	= 'SELECT * FROM fs_categories ORDER BY name ASC';
+					$resultA= SQL::sendQuery($sql);
+					while($category = mysql_fetch_array($resultA))
+					{
+						$series_in_category = 0;
+						$loop = 0;
+						foreach($series as $serie)
+						{
+							if(!in_array($category['id'],explode(';',$serie['categories']))) continue;
+							if($series_in_category == 0)
+							{
+								echo '<br/><div class="alert alert-success"><h3>'.$category['name'].'</h3></div>';
+								echo '<div class="row-fluid">';
+							}
+							$series_in_category++;
+							if(++$loop >= SERIES_PER_ROW)
+							{
+								$loop = 0;
+								echo '</div><br/><div class="row-fluid">';
+							}
+							echo '<div class="span'.SERIES_SPAN.'"><a href="index.php?page=series.season&id='.intval($serie['id']).'" role="button" class="btn">';
+								if($show == 2)
+								{
+									if(file_exists('img/series/cut_covers/'.$serie['cover'].'_200x200.png')) echo '<img src="img/series/cut_covers/'.$serie['cover'].'_200x200.png"/>';
+									else echo '<img src="img/series/cut_covers/no_cover_200x200.png"/>';
+								}
+								else if($show == 1)
+								{
+									echo '<h3>'.$serie['name'];
+									if(in_array($serie['id'],$fav_stack)) echo ' <img src="img/icons/ratingS.png"/>';
+									echo '</h3>';
+								}
+								else
+								{
+									echo '<h3>'.$serie['name'];
+									if(in_array($serie['id'],$fav_stack)) echo ' <img src="img/icons/ratingS.png"/>';
+									echo '</h3>
+										<p>
+											'.$serie['seasons'].' Staffeln, '.$serie['episodes'].' Episoden<br/>
+											Meta <span class="badge badge-';
+											if(intval($serie['metascore']) <= 0)		echo 'info">unrated';
+											else if(intval($serie['metascore']) <= 40)	echo 'important">'.intval($serie['metascore']).'/100';
+											else if(intval($serie['metascore']) <= 60)	echo 'warning">'.intval($serie['metascore']).'/100';
+											else echo 'success">'.intval($serie['metascore']).'/100';
+											echo '</span> User <img src="img/rating'.round($serie['userrating']).'.png"/>
+										</p>';
+								}
+								echo '</a>
+							</div>';
+						}
+						if($series_in_category != 0) echo '</div>';
+					}
+				}
+				echo '
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">'.LANG::getData('series')->presentation->heading.'</h2>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">';
+					$show_icon = array('th','align-justify','camera');
+					for($i=0; $i<3; $i++)
+					{
+						if($show == $i) echo '<li class="active bold"><a href="#"><i class="icon-'.$show_icon[$i].'"></i>'.LANG::getData('series')->presentation->show_method[$i].'</a></li>';
+						else echo '<li><a href="index.php?page=series.overview&show='.$i.'"><i class="icon-'.$show_icon[$i].'"></i>'.LANG::getData('series')->presentation->show_method[$i].'</a></li>';
+					}
+				echo '</ul>
+			</div>
+			<h4 class="title grey">'.LANG::getData('series')->sort->name.'</h2>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">';
+					for($i=0; $i<(USER::isLoggedIn()?4:3); $i++)
+					{
+						if($order == $i)	echo '<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>'.LANG::getData('series')->sort->sortmethod[$i].'</a></li>';
+						else				echo '<li><a href="index.php?page=series.overview&order='.$i.'"><i class="icon-chevron-left"></i>'.LANG::getData('series')->sort->sortmethod[$i].'</a></li>';
+					}
+				echo '</ul>
+			</div>
+		</div>
+	</div>
+	</div>';
+?>

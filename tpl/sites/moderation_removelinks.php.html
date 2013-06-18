@@ -1,0 +1,169 @@
+<div class="container" style="width:80%">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php
+					$tmp = intval(@$_GET['category']);
+					$tmp_names = array('Defektmeldungen überprüfen');
+					if(!($tmp >= 0 && $tmp < sizeof($tmp_names))) $tmp = 0;
+					
+					$sql	= 'SELECT * FROM fs_series';
+					$result	= SQL::sendQuery($sql);
+					$series	= array();
+					while($tmp_series = mysql_fetch_array($result)) $series[intval($tmp_series['id'])] = $tmp_series;
+					
+					$sql	= 'SELECT * FROM fs_series_link_hosters';
+					$result	= SQL::sendQuery($sql);
+					$hosters= array();
+					while($tmp_hosters = mysql_fetch_array($result)) $hosters[intval($tmp_hosters['id'])] = $tmp_hosters;
+				?>
+				<h3><?php echo $tmp_names[$tmp]; ?></h3>
+				
+				<?php
+				
+				if(isset($_GET['action']) && isset($_GET['fs_token']) && USER::actionAuth())
+				{
+					$sql	= 'SELECT * FROM fs_series_reported_links WHERE id='.intval(@$_GET['id']).' AND status=0';
+					$result	= SQL::sendQuery($sql);
+					if(mysql_num_rows($result) >= 1)
+					{
+						$report_info = mysql_fetch_array($result);
+						if(!strcmp($_GET['action'],'removelink'))
+						{
+							$sql		= 'SELECT * FROM fs_series_links WHERE id='.intval($report_info['lid']);
+							$result		= SQL::sendQuery($sql);
+							$link_info	= mysql_fetch_array($result);
+							$sql = 'INSERT INTO fs_series_removed_links (old_id,sid,ssid,eid,lid,lid_subtitle,userID,hoster,link_id,ad_link,timestamp) VALUES ('.intval($link_info['id']).','.intval($link_info['sid']).','.intval($link_info['ssid']).','.intval($link_info['eid']).','.intval($link_info['lid']).','.intval($link_info['lid_subtitle']).','.intval($link_info['userID']).','.intval($link_info['hoster']).',"'.mysql_real_escape_string($link_info['link_id']).'","'.mysql_real_escape_string($link_info['ad_link']).'",'.intval($link_info['timestamp']).')';
+							SQL::sendQuery($sql);
+							$sql = 'DELETE FROM fs_series_links WHERE id='.intval($report_info['lid']);
+							SQL::sendQuery($sql);
+							$sql = 'UPDATE fs_series_reported_links SET status=1,edited_by_id='.intval(USER::$user['userID']).',edited_by_name="'.mysql_real_escape_string(USER::$user['userName']).'",edited_time='.time().' WHERE id='.intval(@$_GET['id']);
+							SQL::sendQuery($sql);
+							$sql = 'UPDATE wcf'.WCF_N.'_user_option_value SET userOption56=userOption56+1 WHERE userID='.intval($report_info['userID']);
+							SQL::sendQuery($sql);
+							echo '<div class="alert alert-error"><strong> Du hast den Link <strong>gelöscht</strong></div>';
+						}
+						else if(!strcmp($_GET['action'],'declinereport'))
+						{
+							$sql = 'UPDATE fs_series_reported_links SET status=2,edited_by_id='.intval(USER::$user['userID']).',edited_by_name="'.mysql_real_escape_string(USER::$user['userName']).'",edited_time='.time().' WHERE id='.intval(@$_GET['id']);
+							SQL::sendQuery($sql);
+							echo '<div class="alert alert-success"><strong> Du hast den Antrag <strong>abgelehnt</strong></div>';
+						}
+					}
+					else echo '<div class="alert alert-error"><strong>Fehler!</strong> Die angegebene ID ist ungültig oder wurde schon bearbeitet</div>';
+			}
+				
+				$sql	= 'SELECT * FROM fs_series_reported_links WHERE status='.intval($tmp);
+				$result	= SQL::sendQuery($sql);
+				while($tmp_entry = mysql_fetch_array($result)) $entries[] = $tmp_entry;
+				if(!isset($entries) || sizeof($entries) <= 0)
+				{
+					if($tmp == 0)		echo '<div class="alert alert-info"><strong>Info:</strong> Es wurden keine Links defekt gemeldet</div>';
+					else if($tmp == 1)	echo '<div class="alert alert-info"><strong>Info:</strong> Es wurden noch keine Links entfernt</div>';
+					else if($tmp == 2)	echo '<div class="alert alert-info"><strong>Info:</strong> Es wurden noch keine Meldungen abgelehnt</div>';
+				}
+				else
+				{
+				?>
+					<table class="table table-hover">
+						<thead>
+							<tr>
+								<th>#</th>
+								<th>Serie</th>
+								<th>ID</th>
+								<th>Hoster</th>
+								<th>Links</th>
+								<th>Grund</th>
+								<th>Reporter</th>
+								<th>Gemeldet</th>
+							</tr>
+						</thead>
+						<tbody>
+							<?php
+								if($tmp == 0)
+								{
+									$reported_stack = array();
+									foreach($entries as $entry) $reported_stack[] = $entry['lid'];
+									if(sizeof($reported_stack) >= 1)
+									{
+										$sql		= 'SELECT * FROM fs_series_links WHERE id IN('.join(',',$reported_stack).')';
+										$result		= SQL::sendQuery($sql);
+										$link_info	= array();
+										while($tmp_link = mysql_fetch_array($result)) $link_info[$tmp_link['id']] = $tmp_link;
+									}
+								}
+								foreach($entries as $entry)
+								{
+									echo '<tr';
+										if($tmp == 1)		echo ' class="error"';
+										else if($tmp == 2)	echo ' class="success"';
+										echo '><td>';
+											if($tmp == 0) echo '<div class="btn-group">
+												<button class="btn btn-warning dropdown-toggle" data-toggle="dropdown">#'.$entry['id'].' Aktion <span class="caret"></span></button>
+												<ul class="dropdown-menu">
+													<li><a href="index.php?page=moderation.removelinks&action=removelink&id='.$entry['id'].'&fs_token='.USER::$user['fs_token'].'">Link entfernen</a></li>
+													<li><a href="index.php?page=moderation.removelinks&action=declinereport&id='.$entry['id'].'&fs_token='.USER::$user['fs_token'].'">Meldung ablehnen</a></li>
+												</ul>
+											</div>';
+											else if($tmp == 1) echo '<span class="badge badge-important">#'.$entry['id'].'</span>';
+											else if($tmp == 2) echo '<span class="badge badge-success">#'.$entry['id'].'</span>';
+										echo '</td>
+										<td>';
+										if(isset($series[$entry['sid']])) echo $series[$entry['sid']]['name'];
+										else echo 'Unbekannt';
+										echo '</td>
+										<td>S'.$entry['ssid'].'E'.$entry['eid'].'</td>
+										<td>';
+										if(isset($hosters[$link_info[intval($entry['lid'])]['hoster']])) echo $hosters[$link_info[intval($entry['lid'])]['hoster']]['name'];
+										else echo 'Unbekannt';
+										echo '</td>
+										<td>';
+										if(isset($hosters[$link_info[intval($entry['lid'])]['hoster']]))
+										{
+											$loop = 0;
+											foreach(explode(';',$link_info[intval($entry['lid'])]['link_id']) as $link)
+											{
+												if(empty($link)) continue;
+												$loop++;
+												echo '<a target="_blank" href="'.sprintf($hosters[$link_info[intval($entry['lid'])]['hoster']]['embed_format'],$link).'">#'.$loop.'</a> ';
+											}
+										}
+										else 'Unbekannt';
+										echo '</td>
+										<td>
+											<a href="#" class="tooltip-activate" title="'.htmlspecialchars($entry['additional_information']).'">';
+										if($entry['reason'] == 1)		echo 'Defekter Link';
+										else if($entry['reason'] == 2)	echo 'Falsche Staffel/Episode';
+										else if($entry['reason'] == 3)	echo 'Falsche Sprache/Untertitel';
+										else if($entry['reason'] == 4)	echo 'Unzureichende Qualität';
+										else							echo 'Unbekannt';
+										echo '</a>
+										</td>
+										<td><a href="forum/index.php?page=User&userID='.$entry['userID'].'">'.htmlspecialchars($entry['userName']).'</a></th>
+										<td>'.gmdate('d.m.Y - G:i',$entry['timestamp']).' Uhr</th>
+									</tr>';
+								}
+							?>
+						</tbody>
+					</table>
+				<?php
+				}
+				?>
+			</div>	  
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<?php
+						for($i=0; $i<sizeof($tmp_names); $i++)
+						{
+							if($i == $tmp)	echo '<li class="active bold"><a href="#"><i class="icon-chevron-left"></i> '.$tmp_names[$i].'</a></li>';
+							else			echo '<li><a href="index.php?page=moderation.removelinks&category='.$i.'"><i class="icon-chevron-left"></i> '.$tmp_names[$i].'</a>';
+						}
+					?>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,364 @@
+<div class="container">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php
+				$serieSID	= intval(@$_GET['id']);
+				$sql		= 'SELECT * FROM fs_series WHERE id='.intval($serieSID);
+				$result		= SQL::sendQuery($sql);
+				if(!mysql_num_rows($result))
+				{
+					header('Location: index.php?page=moderation.seriesoverview');
+					exit;
+				}
+				$serie = mysql_fetch_array($result);
+				
+				$serieSSID	= intval(@$_GET['ssid']);
+				$sql		= 'SELECT * FROM fs_series_seasons WHERE sid='.intval($serieSID);
+				$result		= SQL::sendQuery($sql);
+				$seasons	= array();
+				if(mysql_num_rows($result)) while($tmp_season = mysql_fetch_array($result)) $seasons[$tmp_season['ssid']] = $tmp_season;				
+				if($serieSSID <= 0 && $serieSSID > $serie['seasons'] || !isset($seasons[intval($serieSSID)])) $serieSSID = 0;
+				else
+				{
+					$season		= $seasons[$serieSSID];
+					$sql		= 'SELECT * FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($serieSSID).' ORDER BY eid ASC';
+					$result		= SQL::sendQuery($sql);
+					$episodes	= array();
+					if(mysql_num_rows($result)) while($tmp_episode = mysql_fetch_array($result)) $episodes[$tmp_episode['eid']] = $tmp_episode;
+
+					$sql		= 'SELECT * FROM fs_series_links WHERE sid='.intval($serieSID).' AND ssid='.intval($serieSSID).' ORDER BY eid ASC';
+					$result		= SQL::sendQuery($sql);
+					$links		= array();
+					if(mysql_num_rows($result)) while($tmp_link = mysql_fetch_array($result)) $links[$tmp_link['eid']][] = $tmp_link;
+					
+					$highlight_link = intval(@$_GET['highlight_link']);
+				}
+				
+				$sql		= 'SELECT * FROM fs_series_link_hosters ORDER BY id ASC';
+				$result		= SQL::sendQuery($sql);
+				$hosters	= array();
+				if(mysql_num_rows($result)) while($tmp_hoster = mysql_fetch_array($result)) $hosters[$tmp_hoster['id']] = $tmp_hoster;
+				
+				if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth())
+				{//Post actions
+					echo '<a name="top"></a>';
+					if(!strcmp($_POST['action'],'insertCSV') && isset($_POST['csv_data']) && isset($_POST['csv_structure']) && isset($_POST['csv_delimiter']))
+					{//CSV (links hinzufügen)
+						$delimiter = ";";
+						if(strlen($_POST['csv_delimiter']) == 1) $delimiter = $_POST['csv_delimiter'];
+						$csv_insert_result = array('success'=>0,'failed'=>0);
+						foreach(explode("\n",$_POST['csv_data']) as $row)
+						{
+							if(empty($row)) continue;
+							$data = str_getcsv($row,$delimiter);
+							if(sizeof($data) < 4 || sizeof($data) > 6)
+							{
+								$csv_insert_result['failed']++;
+								continue;
+							}
+							$episode = array
+								(
+									'season'		=> 0,
+									'episode'		=> 0,
+									'hoster'		=> 0,
+									'link_id'		=> null,
+									'lid'			=> 1,
+									'lid_subtitle'	=> 0
+								);
+							for($i=0; $i<sizeof($_POST['csv_structure']); $i++)
+							{
+								if(!isset($data[$i])) continue;
+								$episode[$_POST['csv_structure'][$i]] = $data[$i];
+							}
+							$episode['season']			= intval($episode['season']);
+							$episode['episode'] 		= intval($episode['episode']);
+							$episode['hoster']			= intval($episode['hoster']);
+							$episode['lid']				= intval($episode['lid']);
+							$episode['lid_subtitle']	= intval($episode['lid_subtitle']);
+							if($episode['season'] <= 0 || $episode['season'] > $serie['seasons'] || $episode['episode'] <= 0 || $episode['episode'] > $seasons[$episode['season']]['episodes']) { $csv_insert_result['failed']++; continue; }
+							if($episode['hoster'] <= 0 || !isset($hosters[$episode['hoster']]) || $episode['lid'] <= 0 || !isset(LANG::$languages[$episode['lid']]) || $episode['lid_subtitle'] < 0 || ($episode['lid_subtitle'] != 0 && !isset(LANG::$languages[$episode['lid_subtitle']]))) { $csv_insert_result['failed']++; continue; } 
+							$hoster		= $hosters[$episode['hoster']];
+							$pattern	= '~^('.sprintf($hoster['id_regex'],$hoster['id_len']).')$~';
+							$link_id	= array();
+							foreach(explode(';',$episode['link_id']) as $tmp_link_id)
+							{
+								if(empty($tmp_link_id)) continue;
+								$pattern = '~^('.sprintf($hoster['id_regex'],$hoster['id_len']).')$~';
+								if(!preg_match($pattern,$tmp_link_id,$tmp_link_id)) { $csv_insert_result['failed']++; continue 2; }
+								$link_id[] = $tmp_link_id[1];
+							}
+							$link_id = array_filter(array_unique($link_id));
+							if(sizeof($link_id) <= 0) { $csv_insert_result['failed']++; continue; }
+							foreach($link_id as $check_part)
+							{
+								$sql2		= 'SELECT COUNT(*) FROM fs_series_links WHERE hoster='.intval($episode['hoster']).' AND link_id LIKE "%'.mysql_real_escape_string($check_part).'%"';
+								$result2	= SQL::sendQuery($sql2);
+								if(mysql_result($result2,0) >= 1) { $csv_insert_result['failed']++; continue 2; }
+								
+								$sql2		= 'SELECT COUNT(*) FROM fs_series_linksuggestions WHERE hoster='.intval($episode['hoster']).' AND link_id LIKE "%'.mysql_real_escape_string($check_part).'%"';
+								$result2	= SQL::sendQuery($sql2);
+								if(mysql_result($result2,0) >= 1) { $csv_insert_result['failed']++; continue 2; }
+							}
+							$sql = 'INSERT INTO fs_series_links (sid,ssid,eid,lid,lid_subtitle,userID,hoster,link_id,timestamp) VALUES ('.intval($serieSID).','.intval($episode['season']).','.intval($episode['episode']).','.intval($episode['lid']).','.intval($episode['lid_subtitle']).','.intval(@USER::$user['userID']).','.intval($episode['hoster']).',"'.mysql_real_escape_string(';'.join(';',$link_id).';').'",'.time().')';
+							SQL::sendQuery($sql);
+							$csv_insert_result['success']++;
+							if($episode['season'] == $serieSSID)
+							{
+								$links[$episode['episode']][] = array
+									(
+										'sid'			=> $serieSID,
+										'ssid'			=> $episode['season'],
+										'eid'			=> $episode['episode'],
+										'lid'			=> $episode['lid'],
+										'lid_subtitle'	=> $episode['lid_subtitle'],
+										'userID'		=> USER::$user['userID'],
+										'hoster'		=> $episode['hoster'],
+										'link_id'		=> ';'.join(';',$link_id).';',
+										'timestamp'		=> time()
+									);
+							}
+						}
+						$sql = 'UPDATE wcf'.WCF_N.'_user_option_value SET userOption54=userOption54+'.intval($csv_insert_result['success']).' WHERE userID='.intval(USER::$user['userID']);
+						SQL::sendQuery($sql);
+						
+						echo '<div class="alert alert-success"><strong>CSV eingespeist!</strong> '.$csv_insert_result['success'].' erfolgreich, '.$csv_insert_result['failed'].' gescheitert</div>';
+					}
+					else if(!strcmp($_POST['action'],'editlinks') && $serieSSID != 0 && isset($_POST['editEpisode']))
+					{//Episoden editieren
+					}
+					else if(!strcmp($_POST['action'],'addepisodes') && isset($_POST['addEpisode']))
+					{//Episoden hinzufügen
+					}
+				}
+				else if(isset($_GET['action']) && isset($_GET['fs_token']) && USER::actionAuth())
+				{//Get actions
+					if(!strcmp($_GET['action'],'deletelink'))
+					{
+					}
+				}
+				
+				echo '<div align="center"><img src="img/series/cut_covers/'.$serie['cover'].'_200x200.png" class="img-polaroid"/></div>
+				<h2>'.htmlspecialchars($serie['name']).'</h2>			
+				<a name="editseasons"></a>
+				<div class="well">
+					<h3>Staffel auswählen</h3>
+					<select onChange="document.location = this.value" value="Auswahl">
+						<option value="#">Bitte wähle eine Staffel</option>';
+							foreach($seasons as $tmp_season)
+							{
+								echo '<option value="index.php?page=moderation.managelinks&id='.$serieSID.'&ssid='.$tmp_season['ssid'].'"';
+								if($tmp_season['ssid'] == $serieSSID) echo ' selected';
+								echo '>Staffel #'.$tmp_season['ssid'].'</option>';
+							}
+						echo '</select> - wähle eine Staffel, dessen Episodenlinks du bearbeiten möchtest';
+					if($serieSSID != 0)
+					{
+						echo '<h3>Links bearbeiten</h3>
+						<div class="accordion" id="accordion">';
+						for($i=1; $i<=$season['episodes']; $i++)
+						{
+							$tmp_episode = array
+								(
+									'id'			=> 0,
+									'sid'			=> $serieSID,
+									'ssid'			=> $serieSSID,
+									'eid'			=> $i,
+									'name_de'		=> 'Unbekannt',
+									'name_en'		=> 'Unknown',
+									'description'	=> ''
+								);
+							if(isset($episodes[$i]))
+							{
+								if(!empty($episodes[$i]['name_de'])) $tmp_episode['name_de'] = $episodes[$i]['name_de'];
+								if(!empty($episodes[$i]['name_en'])) $tmp_episode['name_en'] = $episodes[$i]['name_en'];
+							}
+							
+							echo '
+							<div class="accordion-group">
+								<div class="accordion-heading">';
+									if(isset($links[$i])) echo '<a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion" href="#collapse'.$i.'">';
+										echo 'S'.$serieSSID.'E'.$i.' - <img src="img/icons/languageDeS.png"/> '.htmlspecialchars($tmp_episode['name_de']).'  <img src="img/icons/languageEnS.png"/> '.htmlspecialchars($tmp_episode['name_en']);
+									if(isset($links[$i])) echo '</a>';
+								echo '</div>';
+									if(!isset($links[$i]))
+									{
+										echo '</div>';
+										continue;
+									}
+								echo '<div id="collapse'.$i.'" class="accordion-body collapse" style="height: 0px;">
+									<div class="accordion-inner">';
+									?>
+										<table class="table">
+											<thead>
+												<tr>
+													<th>#</th>
+													<th>Hoster</th>
+													<th>Link-ID</th>
+													<th>Sprache</th>
+													<th>Untertitel</th>
+												</tr>
+											</thead>
+											<tbody><?php
+												foreach($links[$i] as $link)
+												{
+													echo '<tr';
+													if($link['id'] == $highlight_link) echo ' class="warning"';
+													echo '>
+														<td><a href="index.php?page=moderation.managelinks&id='.$serieSID.'&ssid='.$season['ssid'].'&eid='.$i.'&action=deletelink&fs_token='.USER::$user['fs_token'].'" onclick="return confirmAction('.$link['id'].')"><img src="img/icons/deleteS.png"/></a></td>
+														<td>'.htmlspecialchars($hosters[$link['hoster']]['name']).'</td>
+														<td>'.$link['link_id'].'</td>
+														<td><img src="img/icons/'.LANG::$languages[$link['lid']]['icon_name'].'.png"/>'.LANG::$languages[$link['lid']]['name'].'</td>
+														<td>';
+															if($link['lid_subtitle'] >= 1) echo '<img src="img/icons/'.LANG::$languages[$link['lid']]['icon_name'].'.png"/>'.LANG::$languages[$link['lid']]['name'];
+														echo '</td>
+													</tr>';
+												}
+											?></tbody>
+										</table>
+									</div>
+								</div>
+							</div><?php
+						}
+						echo '</div>';
+					}
+				echo '
+				</div>
+				<a name="addlinks"></a>
+				<div class="well">
+					<h3>Links hinzufügen</h3>
+					<form method="post" action "index.php?page=smoderation.manageseasons&action=none>
+						<input type="hidden" name="fs_token"	value="'.USER::$user['fs_token'].'"/>
+						<input type="hidden" name="action"		value="addlinks"/>';
+						?>
+						<table class="table table-hover">
+							<thead>
+								<tr>
+									<th style="width:70px">Staffel</th>
+									<th style="width:70px">Episode</th>
+									<th>Hoster</th>
+									<th>Link</th>
+									<th>Sprache</th>
+									<th>Untertitel</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr id="addLink_0">
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" name="addLink[0][ssid]" type="text" value="<?php echo intval(@$serieSSID); ?>"></div></td>
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" name="addLink[0][eid]" type="text" value="0"></div></td>
+									<td>
+										<select name="addLink[0][hoster]" style="width:125px">
+											<option value="0">Hoster</option>
+											<?php foreach($hosters as $hoster) echo '<option value="'.$hoster['id'].'">'.htmlspecialchars($hoster['name']).'</option>'; ?>
+										</select>
+									</td>
+									<td><input type="text" name="addLink[0][link]"/></td>
+									<td>
+										<select name="addLink[0][language]" style="width:125px">
+											<option value="1">Deutsch</option>
+											<?php foreach(LANG::$languages as $language) if($language['id'] != 1) echo '<option value="'.$language['id'].'">'.htmlspecialchars($language['name']).'</option>'; ?>
+										</select>
+									</td>
+									<td>
+										<select name="addLink[0][subtitle]" style="width:125px">
+											<option value="0">Keine</option>
+											<?php foreach(LANG::$languages as $language) echo '<option value="'.$language['id'].'">'.htmlspecialchars($language['name']).'</option>'; ?>
+										</select>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<div align="center"><button type="button" class="btn" onclick="addLinkField(1);">Noch einen Link</button></div>
+						<button type="submit" class="btn btn-primary">Links hinzufügen</button>
+					</form>
+					<script>
+						var staticID = 0
+						function addLinkField(i)
+						{
+							staticID = staticID + 1
+							lastID = staticID - 1
+							$("#addLink_"+lastID).after(
+								'<tr id=\"addLink_'+staticID+'\">'+
+									'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">S</span><input style=\"width:30px\" name=\"addLink['+staticID+'][ssid]\" type=\"text\" value=\"<?php echo intval(@$serieSSID); ?>\"></div></td>'+
+									'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">E</span><input style=\"width:30px\" name=\"addLink['+staticID+'][eid]\" type=\"text\" value=\"0\"></div></td>'+
+									'<td>'+
+										'<select name=\"addLink['+staticID+'][hoster]\" style=\"width:125px\">'+
+											'<option value=\"0\">Hoster</option>'+
+											<?php foreach($hosters as $hoster) echo "'<option value=\"".$hoster['id']."\">".htmlspecialchars($hoster['name'])."</option>'+"; ?>
+										'</select>'+
+									'</td>'+
+									'<td><input type=\"text\" name=\"addLink['+staticID+'][link]\"/></td>'+
+									'<td>'+
+										'<select name=\"addLink['+staticID+'][language]\" style=\"width:125px\">'+
+											'<option value=\"1\">Deutsch</option>'+
+											<?php foreach(LANG::$languages as $language) if($language['id'] != 1) echo "'<option value=\"".$language['id']."\">".htmlspecialchars($language['name'])."</option>'+"; ?>
+										'</select>'+
+									'</td>'+
+									'<td>'+
+										'<select name=\"addLink['+staticID+'][subtitle]\" style=\"width:125px\">'+
+											'<option value=\"0\">Keine</option>'+
+											<?php foreach(LANG::$languages as $language) echo "'<option value=\"".$language['id']."\">".htmlspecialchars($language['name'])."</option>'+"; ?>
+										'</select>'+
+									'</td>'+
+								'</tr>'
+							);
+						};
+					</script>
+				</div>
+				<div class="well">
+					<script src="js/jquery-ui-1-10-2.js"></script>
+					<style>
+						#sortable > div { float: left; }
+						#draggable1 { width: 70px; padding: 0.5em; }
+						#draggable2 { width: 70px; padding: 0.5em; }
+						#draggable3 { width: 70px; padding: 0.5em; }
+						#draggable4 { width: 70px; padding: 0.5em; }
+						#draggable5 { width: 70px; padding: 0.5em; }
+						#draggable6 { width: 70px; padding: 0.5em; }
+					</style>
+					<script>
+						$(function()
+						{
+							$("#sortable").sortable();
+							$("#sortable").disableSelection();
+						});
+					</script>
+					<h3>Links im CSV-Format einspeisen</h3>
+					<form method="post" action="index.php?page=moderation.managelinks&id=<?php echo $serieSID.'&ssid='.$serieSSID; ?>">
+						<h4>Struktur der CSV</h4>
+						<input type="hidden" name="action" value="insertCSV"/>
+						<input type="hidden" name="fs_token" value="<?php echo USER::$user['fs_token']; ?>"/>
+						<div id="sortable">
+							<div id="draggable1"><input type="hidden" name="csv_structure[]" value="season"/>Staffel</div>
+							<div id="draggable2"><input type="hidden" name="csv_structure[]" value="episode"/>Episode</div>
+							<div id="draggable3"><input type="hidden" name="csv_structure[]" value="hoster"/>Hoster-ID</div>
+							<div id="draggable4"><input type="hidden" name="csv_structure[]" value="link_id"/>Link-ID</div>
+							<div id="draggable5"><input type="hidden" name="csv_structure[]" value="lid"/>Sprach-ID</div>
+							<div id="draggable6"><input type="hidden" name="csv_structure[]" value="lid_subtitle"/>Untertitel-ID</div>
+						</div>
+						<br/><br/>
+						<h4>Verwendeter Delimiter</h4>
+						<input type="text" name="csv_delimiter" value=";" style="width:20px"/> Standartmäßig ein Semikolon ";"
+						<h4>CSV-Input</h4>
+						<textarea name="csv_data" rows="5" style="width:100%"></textarea>
+						<button type="submit" class="btn btn-primary">CSV einspeisen</button>
+					</form>
+				</div>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li><a href="index.php?page=moderation.seriesoverview"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li class="active bolt"><a href="#"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li><a href="index.php?page=moderation.manageepisodes&id=<?php echo intval(@$serieSID); ?>"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<?php if(VALIDATION::canAccessPage(array('smoderation','manageseasons')))	echo '<li><a href="index.php?page=smoderation.manageseasons&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','editseries')))	echo '<li><a href="index.php?page=administration.editseries&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','addseries')))	echo '<li><a href="index.php?page=administration.addseries"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','cronjobs')))		echo '<li><a href="index.php?page=administration.cronjobs&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>'; ?>
+				</ul>
+			</div>
+		</div>
+</div>
+</div>

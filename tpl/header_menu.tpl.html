@@ -1,0 +1,98 @@
+										<?php if(!strcmp(VALIDATION::$_page[0],'home')) echo '<li class="active">'; else echo '<li>'; ?>
+										<a href="index.php?page=home"><?php echo LANG::getData('main')->menu->button[0]->heading; ?></a></li>
+										<?php if(!strcmp(VALIDATION::$_page[0],'series')) echo '<li class="dropdown active">'; else echo '<li class="dropdown">'; ?>
+											<a class="dropdown-toggle" id="drop1" data-toggle="dropdown" href="#"><?php echo LANG::getData('main')->menu->button[1]->heading; ?> <b class="caret"></b></a>
+											<ul id="menu1" class="dropdown-menu" aria-labelledby="drop1">
+												<li><a href="index.php?page=series.overview&order=0"><?php echo LANG::getData('main')->menu->button[1]->submenu->heading[0]; ?></a></li>
+												<li><a href="index.php?page=series.overview&order=1"><?php echo LANG::getData('main')->menu->button[1]->submenu->heading[1]; ?></a></li>
+												<li><a href="index.php?page=series.overview&order=2"><?php echo LANG::getData('main')->menu->button[1]->submenu->heading[2]; ?></a></li>
+												<?php
+													if(USER::isLoggedIn())
+													{ ?>
+														<li class="divider"></li>
+														<li><a href="index.php?page=series.overview&order=3"><?php echo LANG::getData('main')->menu->button[1]->submenu->heading[3]; ?></a></li>
+													<?php }
+												?>
+											</ul>
+										</li>
+										<?php
+											if(USER::isLoggedIn())
+											{
+												$sql	= 'SELECT COUNT(*) FROM wcf'.WCF_N.'_pm_to_user WHERE recipientID='.intval(USER::$user['userID']).' AND isViewed=0';
+												$result	= SQL::sendQuery($sql);
+												$unread	= intval(mysql_result($result,0));
+												
+												if(!strcmp(VALIDATION::$_page[0],'account')) echo '<li class="dropdown active">'; else echo '<li class="dropdown">'; ?>
+													<a class="dropdown-toggle" id="drop2" data-toggle="dropdown" href="#"><?php echo htmlspecialchars(USER::$user['userName']);/*LANG::getData('main')->menu->button[2]->heading;*/ if($unread >= 1) echo '<span class="badge badge-success">'.$unread.'</span>'; ?> <b class="caret"></b></a>
+													<ul id="menu2" class="dropdown-menu" aria-labelledby="drop2">
+														<li><a href="forum/index.php?page=PMList&folderID=0"><?php echo LANG::getData('main')->menu->button[2]->submenu->heading[0]; if($unread >= 1) echo '<span class="badge badge-success">'.$unread.'</span>'; ?></a></li>
+														<li><a href="forum/index.php?form=UserProfileEdit"><?php echo LANG::getData('main')->menu->button[2]->submenu->heading[1]; ?></a></li>
+														<li><a href="forum/index.php?page=User&userID=<?php echo USER::$user['userID'] ?>"><?php echo LANG::getData('main')->menu->button[2]->submenu->heading[2]; ?></a></li>
+														<li class="divider"></li>
+														<li><a href="index.php?action=UserLogout"><?php echo LANG::getData('main')->menu->button[2]->submenu->heading[3]; ?></a></li>
+													</ul>
+												</li>
+												<?php
+												if(VALIDATION::canAccessPage(array('moderation')) || VALIDATION::canAccessPage(array('smoderation')) || VALIDATION::canAccessPage(array('administration')))
+												{
+													$sql		= 'SELECT COUNT(*) FROM fs_series_linksuggestions WHERE status=0';
+													$result		= SQL::sendQuery($sql);
+													$count[0]	= mysql_result($result,0);
+													$sql		= 'SELECT COUNT(*) FROM fs_series_reported_links WHERE status=0';
+													$result		= SQL::sendQuery($sql);
+													$count[1]	= mysql_result($result,0);
+													if(!strcmp(VALIDATION::$_page[0],'moderation') || !strcmp(VALIDATION::$_page[0],'smoderation') || !strcmp(VALIDATION::$_page[0],'administration')) echo '<li class="dropdown active">'; else echo '<li class="dropdown">'; ?>
+														<a class="dropdown-toggle" id="drop2" data-toggle="dropdown" href="#">Moderationstools<?php if($count[0] >= 1 || $count[1] >= 1) echo ' <span class="badge badge-success">'.intval($count[0]+$count[1]).'</span>'; ?><b class="caret"></b></a>
+														<ul id="menu2" class="dropdown-menu" aria-labelledby="drop2">
+															<li><a href="index.php?page=moderation.addlinks&category=0">Links verwalten <span class="badge badge-success"><?php echo $count[0]; ?></span></a></li>
+															<li><a href="index.php?page=moderation.removelinks&category=0">Defektmeldungen <span class="badge badge-success"><?php echo $count[1]; ?></span></a></li>
+															<li><a href="index.php?page=moderation.seriesoverview">Serienübersicht</a></li>
+														</ul>
+													</li>
+													<?php
+												}
+											}
+											else
+											{
+												echo '<li><a href="#modalAccountLogin" data-toggle="modal">'.LANG::getData('main')->menu->button[2]->heading.'</a></li>
+												<div id="modalAccountLogin" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modalAccountLoginLabel" aria-hidden="true">
+													<div class="modal-header">
+														<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
+														<h3 id="modalAccountLoginLabel">Account</h3>
+													</div>
+													<div class="modal-body">
+														<p>
+															<h3>Registrieren</h3>
+															<a href="forum/index.php?page=Register">Registriere einen kostenlosen Account und erhalte Zugriff auf weitere Features!</a>
+															<h3>Login</h3>
+															<form class="form-horizontal">
+																<div class="control-group">
+																	<label class="control-label" for="inputUserName">Username</label>
+																	<div class="controls">
+																		<input type="text" id="inputUserName" placeholder="Benutzername">
+																	</div>
+																</div>
+																<div class="control-group">
+																	<label class="control-label" for="inputUserPasswort">Passwort</label>
+																	<div class="controls">
+																		<input type="password" id="inputUserPasswort" placeholder="Passwort">
+																	</div>
+																</div>
+																<div class="control-group">
+																	<div class="controls">
+																		<button type="submit" class="btn">Anmelden</button>
+																	</div>
+																</div>
+															</form>														
+														</p>
+													</div>
+													<div class="modal-footer">
+														<button class="btn" data-dismiss="modal" aria-hidden="true">'.LANG::getData('main')->menu->modal_close.'</button>
+													</div>
+												</div>';
+											}
+										?>
+										<?php if(!strcmp(VALIDATION::$_page[0],'premium')) echo '<li class="active">'; else echo '<li>'; ?><a href="index.php?page=premium.overview"><?php echo LANG::getData('main')->menu->button[3]->heading; ?></a></li>
+										<?php if(!strcmp(VALIDATION::$_page[0],'faq')) echo '<li class="active">'; else echo '<li>'; ?><a href="index.php?page=faq&id=1"><?php echo LANG::getData('main')->menu->button[4]->heading; ?></a></li>
+										<?php if(!strcmp(VALIDATION::$_page[0],'blog')) echo '<li class="active">'; else echo '<li>'; ?><a href="index.php?page=blog"><?php echo LANG::getData('main')->menu->button[5]->heading; ?></a></li>
+										<?php if(!strcmp(VALIDATION::$_page[0],'forum')) echo '<li class="active">'; else echo '<li>'; ?><a href="forum/index.php"><?php echo LANG::getData('main')->menu->button[6]->heading; ?></a></li>

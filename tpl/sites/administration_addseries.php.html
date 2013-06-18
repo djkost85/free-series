@@ -1,0 +1,283 @@
+<div class="container" style="width:95%">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php					
+				$genres = array();
+				$sql	= 'SELECT * FROM fs_categories';
+				$result	= SQL::sendQuery($sql);
+				while($tmp_genres = mysql_fetch_array($result)) $genres[$tmp_genres['id']] = $tmp_genres;
+
+				$serie = array
+					(
+						'cover'				=> 'no_cover',
+						'name'				=> '',
+						'seasons'			=> 0,
+						'metascore'			=> 0,
+						'actors'			=> '',
+						'director'			=> ';;',
+						'author'			=> ';;',
+						'producer'			=> ';;',
+						'categories'		=> ';;',
+						'description'		=> '',
+						'production_from'	=> 0,
+						'production_to'		=> 0
+					);
+				if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth())
+				{
+					if(!strcmp($_POST['action'],'addSerie') && isset($_POST['serieName']))
+					{
+						if(!empty($_POST['serieSeasons']))		$serie['seasons']		= $_POST['serieSeasons'];
+						if($serie['seasons'] < 0)				$serie['seasons']		= 0;
+						if(!empty($_POST['serieCover']))		$serie['cover']			= $_POST['serieCover'];
+						if(!empty($_POST['serieName'])) 		$serie['name']			= $_POST['serieName'];
+						if(!empty($_POST['serieActors'])) 		$serie['actors']		= ';'.join(';',$_POST['serieActors']).';';
+						if(!empty($_POST['serieDirectors'])) 	$serie['director']		= ';'.join(';',$_POST['serieDirectors']).';';
+						if(!empty($_POST['serieAuthors'])) 		$serie['author']		= ';'.join(';',$_POST['serieAuthors']).';';
+						if(!empty($_POST['serieProducers'])) 	$serie['producer']		= ';'.join(';',$_POST['serieProducers']).';';
+						if(!empty($_POST['serieGenres'])) 		$serie['categories']	= ';'.join(';',$_POST['serieGenres']).';';
+						if(!empty($_POST['serieDescription']))	$serie['description']	= $_POST['serieDescription'];
+						if(!empty($_POST['serieProduction']))
+						{
+							$tmp_production = explode('-',$_POST['serieProduction']);
+							$serie['production_from']			= intval(@$tmp_production[0]);
+							$serie['production_to']				= intval(@$tmp_production[1]);
+							if($serie['production_from'] < 0)	$serie['production_from']	= 0;
+							if($serie['production_to'] < 0)		$serie['production_to']		= 0;
+						}
+						
+						if(!empty($_POST['serieName']))
+						{
+							$sql	= 'SELECT COUNT(*) FROM fs_series WHERE name="'.mysql_real_escape_string(@$_POST['serieName']).'"';
+							$result	= SQL::sendQuery($sql);
+							if(mysql_result($result,0) >= 1) echo '<div class="alert alert-error"><strong>Eintrag gescheitert!</strong> Die Serie existiert schon</div>';
+							else
+							{
+								echo '<div class="alert alert-success"><strong>Serie hinzugefügt</strong> Du hast die Serie "'.htmlspecialchars(@$_POST['serieName']).'" hinzugefügt</div>';
+								$sql = 'INSERT INTO fs_series (name,seasons,episodes,categories,metascore,userrating,production_from,production_to,actors,director,author,producer,cover,description,timestamp) VALUES (';
+								$sql .= '"'.mysql_real_escape_string($serie['name']).'",'.intval($serie['seasons']).',0,"'.mysql_real_escape_string($serie['categories']).'",0,0,'.intval($serie['production_from']).','.intval($serie['production_to']).',';
+								$sql .= '"'.mysql_real_escape_string($serie['actors']).'","'.mysql_real_escape_string($serie['director']).'","'.mysql_real_escape_string($serie['author']).'","'.mysql_real_escape_string($serie['producer']).'",';
+								$sql .= '"'.mysql_real_escape_string($serie['cover']).'","'.mysql_real_escape_string($serie['description']).'",'.time().')';
+								SQL::sendQuery($sql);
+								$serie = array
+									(
+										'cover'				=> 'no_cover',
+										'name'				=> '',
+										'seasons'			=> 0,
+										'metascore'			=> 0,
+										'actors'			=> '',
+										'director'			=> ';;',
+										'author'			=> ';;',
+										'producer'			=> ';;',
+										'categories'		=> ';;',
+										'description'		=> '',
+										'production_from'	=> 0,
+										'production_to'		=> 0
+									);
+							}
+						}
+						else echo '<div class="alert alert-error"><strong>Fehlerhafte Informationen!</strong> Du musst einen Namen für die Serie eingeben</div>';
+					}
+				}
+				?>
+				<form action="index.php?page=administration.addseries" method="post">
+					<input type="hidden" name="fs_token" value="<?php echo USER::$user['fs_token']; ?>"/>
+					<input type="hidden" name="action" value="addSerie"/>
+					<div align="center">
+						<h3>Bildname des Covers (ohne Dateiendung)</h3>
+						<input type="text" name="serieCover" value="<?php echo $serie['cover']; ?>"/>
+					</div>
+					<div class="well">
+						<h3>Allgemeines</h3>
+						<table align="center" width="100%">
+							<tr>
+								<td><strong>Name:</strong> <input type="text" name="serieName" value="<?php echo htmlspecialchars($serie['name']); ?>"/></td>
+								<td> <strong>Staffeln:</strong> <input type="text" name="serieSeasons" value="<?php echo $serie['seasons']; ?>"/></td>
+								<td> <strong>Episoden:</strong> <input type="text" name="serieEpisodes" value="0" disabled/></td>
+								<td> <strong>Produktion:</strong> <input type="text" name="serieProduction" value="<?php echo $serie['production_from'].'-'.$serie['production_to']; ?>"/></td>
+								<td> <strong>Metascore:</strong> <input type="text" name="serieMetascore" value="<?php echo $serie['metascore']; ?>" disabled /></td>
+							</tr>
+						</table>
+					</div>
+					<div class="well">
+						<h3>Besetzung</h3>
+						<h4>Schauspieler</h4>
+						<?php
+							$last_id = 0;
+							foreach(explode(';',$serie['actors']) as $actor)
+							{
+								if(empty($actor)) continue;
+								$last_id++;
+								echo '<input type="text" style="width:130px" name="serieActors['.$last_id.']" id="addActor_'.$last_id.'" value="'.htmlspecialchars($actor).'">';
+							}
+							if(!$last_id) echo '<input type="text" style="width:130px" name="serieActors['.$last_id.']" id="addActor_0" value="">';
+						?>
+						<button type="button" class="btn" onclick="addActorField(1);">Neues Feld</button>
+						<script>
+							var staticIDactor = <?php echo $last_id."\n"; ?>
+							function addActorField(i)
+							{
+								staticIDactor = staticIDactor + 1
+								lastID = staticIDactor - 1
+								$("#addActor_"+lastID).after(
+								<?php
+									echo "' <input type=\"text\" style=\"width:130px\" name=\"serieActors['+staticIDactor+']\" id=\"addActor_'+staticIDactor+'\"/>'";
+								?>
+								);
+							};
+						</script>
+						<h4>Regisseure</h4>
+						<?php
+							$last_id = 0;
+							foreach(explode(';',$serie['director']) as $director)
+							{
+								if(empty($director)) continue;
+								$last_id++;
+								echo '<input type="text" style="width:130px" name="serieDirectors['.$last_id.']" id="addDirector_'.$last_id.'" value="'.htmlspecialchars($director).'">';
+							}
+							if(!$last_id) echo '<input type="text" style="width:130px" name="serieDirectors['.$last_id.']" id="addDirector_0" value="">';
+						?>
+						<button type="button" class="btn" onclick="addDirectorField(1);">Neues Feld</button>
+						<script>
+							var staticIDdirector = <?php echo $last_id."\n"; ?>
+							function addDirectorField(i)
+							{
+								staticIDdirector = staticIDdirector + 1
+								lastID = staticIDdirector - 1
+								$("#addDirector_"+lastID).after(
+								<?php
+									echo "' <input type=\"text\" style=\"width:130px\" name=\"serieDirectors['+staticIDdirector+']\" id=\"addDirector_'+staticIDdirector+'\"/>'";
+								?>
+								);
+							};
+						</script>
+						<h4>Autoren</h4>
+						<?php
+							$last_id = 0;
+							foreach(explode(';',$serie['author']) as $author)
+							{
+								if(empty($author)) continue;
+								$last_id++;
+								echo '<input type="text" style="width:130px" name="serieAuthors['.$last_id.']" id="addAuthor_'.$last_id.'" value="'.htmlspecialchars($author).'">';
+							}
+							if(!$last_id) echo '<input type="text" style="width:130px" name="serieAuthors['.$last_id.']" id="addAuthor_0" value="">';
+						?>
+						<button type="button" class="btn" onclick="addAuthorField(1);">Neues Feld</button>
+						<script>
+							var staticIDauthor = <?php echo $last_id."\n"; ?>
+							function addAuthorField(i)
+							{
+								staticIDauthor = staticIDauthor + 1
+								lastID = staticIDauthor - 1
+								$("#addAuthor_"+lastID).after(
+								<?php
+									echo "' <input type=\"text\" style=\"width:130px\" name=\"serieAuthors['+staticIDauthor+']\" id=\"addAuthor_'+staticIDauthor+'\"/>'";
+								?>
+								);
+							};
+						</script>
+						<h4>Produzenten</h4>
+						<?php
+							$last_id = 0;
+							foreach(explode(';',$serie['producer']) as $producer)
+							{
+								if(empty($producer)) continue;
+								$last_id++;
+								echo '<input type="text" style="width:130px" name="serieProducers['.$last_id.']" id="addProducer_'.$last_id.'" value="'.htmlspecialchars($producer).'">';
+							}
+							if(!$last_id) echo '<input type="text" style="width:130px" name="serieProducers['.$last_id.']" id="addProducer_0" value="">';
+						?>
+						<button type="button" class="btn" onclick="addProducerField(1);">Neues Feld</button>
+						<script>
+							var staticIDproducer = <?php echo $last_id."\n"; ?>
+							function addProducerField(i)
+							{
+								staticIDproducer = staticIDproducer + 1
+								lastID = staticIDproducer - 1
+								$("#addProducer_"+lastID).after(
+								<?php
+									echo "' <input type=\"text\" style=\"width:130px\" name=\"serieProducers['+staticIDproducer+']\" id=\"addProducer_'+staticIDproducer+'\"/>'";
+								?>
+								);
+							};
+						</script>
+					</div>
+					<div class="well">
+						<h3>Genres</h3>
+						<?php
+							$last_id = 0;
+							foreach(explode(';',$serie['categories']) as $cat)
+							{
+								if(empty($cat)) continue;
+								$last_id++;
+								echo '
+								<select style="width:130px" name="serieGenres['.$last_id.']" id="addGenre_'.$last_id.'">
+								<option value="0"></option>';
+								foreach($genres as $genre)
+								{
+									echo '<option value="'.$genre['id'].'"';
+									if($genre['id'] == $cat) echo ' selected';
+									echo '>'.htmlspecialchars($genre['name']).'</option>';
+								}
+								echo '</select> ';
+							}
+							if($last_id == 0)
+							{
+								$last_id++;
+								echo '
+								<select style="width:130px" name="serieGenres['.$last_id.']" id="addGenre_'.$last_id.'">
+								<option value="0"></option>';
+								foreach($genres as $genre)
+								{
+									echo '<option value="'.$genre['id'].'"';
+									if($genre['id'] == $cat) echo ' selected';
+									echo '>'.htmlspecialchars($genre['name']).'</option>';
+								}
+								echo '</select> ';
+							}
+						?>
+						<button type="button" class="btn" onclick="addGenreField(1);">Neues Feld</button>
+						<script>
+							var staticID = <?php echo $last_id."\n"; ?>
+							function addGenreField(i)
+							{
+								staticID = staticID + 1
+								lastID = staticID - 1
+								$("#addGenre_"+lastID).after(
+								<?php
+									echo "' <select style=\"width:130px\" name=\"serieGenres['+staticID+']\" id=\"addGenre_'+staticID+'\">'+\n";
+									echo "'<option value=\"0\"></option>'+\n";
+									foreach($genres as $genre)
+									{
+										echo "'<option value=\"".$genre['id']."\">".htmlspecialchars($genre['name'])."</option>'+\n";
+									}
+									echo "'</select>'";
+								?>
+								);
+							};
+						</script>
+					</div>
+					<div class="well">
+						<h3>Beschreibung</h3>
+						<textarea rows="5" class="span12" name="serieDescription"><?php echo htmlspecialchars($serie['description']); ?></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Absenden</button>
+				</form>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li><a href="index.php?page=moderation.seriesoverview"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li><a href="index.php?page=moderation.managelinks&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li><a href="index.php?page=moderation.manageepisodes&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<?php if(VALIDATION::canAccessPage(array('smoderation','manageseasons')))	echo '<li><a href="index.php?page=smoderation.manageseasons"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','editseries')))	echo '<li><a href="index.php?page=administration.editseries"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>'; ?>
+					<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>
+					<?php if(VALIDATION::canAccessPage(array('administration','cronjobs')))		echo '<li><a href="index.php?page=administration.cronjobs&id='.intval(@$serieSID).'"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>'; ?>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>

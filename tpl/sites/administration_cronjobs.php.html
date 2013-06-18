@@ -1,0 +1,141 @@
+<div class="container">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<form method="post" action="index.php?page=administration.cronjobs">
+					<?php
+					
+					if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth())
+					{
+						if(!strcmp($_POST['action'],'executeCronjobs'))
+						{
+							require_once('system/cronjobs/UpdateSeries.fscr.php');
+							$cronjob = new FreeSeriesCronjob();
+							$categories_to_execute	= null;
+							$tasks_to_execute		= null;
+							if(isset($_POST['executeCronjobsB_type']) && isset($_POST['executeCronjobsB']) && ($_POST['executeCronjobsB_type'] == 1 || $_POST['executeCronjobsB_type'] == 2))
+							{
+								if($_POST['executeCronjobsB_type'] == 1)
+								{
+									$categories_to_execute[] = 'series';
+									$cronjob->setSeriesToUpdate(array());
+									foreach($_POST['executeCronjobsB'] as $task) $tasks_to_execute[] = $task;
+								}
+								else if(isset($_POST['updateSeries']) && sizeof($_POST['updateSeries']) >= 1)
+								{
+									$tmp_series = null;
+									foreach(array_unique($_POST['updateSeries']) as $tmp_serie) if(intval($tmp_serie) >= 1) $tmp_series[] = $tmp_serie;
+									if(isset($tmp_series) && sizeof($tmp_series) >= 1)
+									{
+										$categories_to_execute[] = 'series';
+										$cronjob->setSeriesToUpdate($_POST['updateSeries']);
+										foreach($_POST['executeCronjobsB'] as $task) $tasks_to_execute[] = $task;
+									}
+								}
+							}
+							if(isset($_POST['executeCronjobsA']))
+							{
+								$categories_to_execute[] = 'stats';
+								foreach($_POST['executeCronjobsA'] as $task) $tasks_to_execute[] = $task;
+							}					
+							if(isset($categories_to_execute) && sizeof($categories_to_execute) >= 1 && isset($tasks_to_execute) && sizeof($tasks_to_execute) >= 1)
+							{
+								$cronjob->setCategoriesToUpdate($categories_to_execute);
+								$cronjob->setTasksToExecute($tasks_to_execute);
+								echo '<div class="alert alert-success"><strong>Folgende Aufgaben wurden ausgeführt:</strong> '.join(', ',$cronjob->execute()).'</div>';
+							}
+						}
+					}
+					
+					$serieSID = intval(@$_GET['id']);
+					if(isset($_POST['sid'])) $serieSID = intval($_POST['sid']);
+					if($serieSID <= 0) $serieSID = 0;
+					$sql	= 'SELECT * FROM fs_cronjob_executions';
+					$result	= SQL::sendQuery($sql);
+					$cronjob_info = array(array());
+					if(mysql_num_rows($result))
+					{
+						while($tmp_info = mysql_fetch_array($result))
+						{
+							$cronjob_id = explode('_',$tmp_info['cronjob']);
+							$cronjob_info[intval($cronjob_id[0])][intval($cronjob_id[1])] = array('userID'=>$tmp_info['userID'],'timestamp'=>$tmp_info['timestamp'],'name'=>$tmp_info['name']);
+						}
+					}					
+					$sql	= 'SELECT * FROM fs_series';
+					$result	= SQL::sendQuery($sql);
+					$series = array();
+					while($tmp_serie = mysql_fetch_array($result)) $series[$tmp_serie['id']] = $tmp_serie;
+					
+					?>
+					<input type="hidden" name="fs_token" value="<?php echo USER::$user['fs_token']; ?>"/>
+					<input type="hidden" name="action" value="executeCronjobs"/>
+					<div class="well">
+						<h3>Statistik</h3>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsA[]" value="update.series.count"> Anzahl der Serien aktualisieren <small>(letzte Ausführung: <strong><?php if($cronjob_info[0][0]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[0][0]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsA[]" value="update.seasons.count"> Anzahl der Staffeln aktualisieren <small>(letzte Ausführung: <strong><?php if($cronjob_info[0][1]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[0][1]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsA[]" value="update.episodes.count"> Anzahl der Episoden aktualisieren <small>(letzte Ausführung: <strong><?php if($cronjob_info[0][2]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[0][2]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsA[]" value="update.links.count"> Anzahl der Links aktualisieren <small>(letzte Ausführung: <strong><?php if($cronjob_info[0][3]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[0][3]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsA[]" value="update.accounts.count"> Anzahl der Accounts aktualisieren <small>(letzte Ausführung: <strong><?php if($cronjob_info[0][4]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[0][4]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<button type="submit" class="btn btn-primary">Cronjob ausführen</button>
+					</div>
+					<div class="well">
+						<h3>Serien</h3>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsB[]" value="recalc.episodes.count"> Anzahl der Episoden ermitteln <small>(letzte Ausführung: <strong><?php if($cronjob_info[1][0]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[1][0]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsB[]" value="recalc.favorites.count"> Anzahl der Favoriten ermitteln <small>(letzte Ausführung: <strong><?php if($cronjob_info[1][1]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[1][1]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsB[]" value="recalc.series.metascore"> Metascore der Serie berechnen <small>(letzte Ausführung: <strong><?php if($cronjob_info[1][2]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[1][2]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<label class="checkbox"><input type="checkbox" name="executeCronjobsB[]" value="recalc.series.userrating"> Userbewertung der Serie berechnen <small>(letzte Ausführung: <strong><?php if($cronjob_info[1][4]['timestamp'] <= 0) echo 'noch nie'; else echo date('d.m.Y, G:i',$cronjob_info[1][4]['timestamp']).' Uhr'; ?>)</strong></small></label>
+						<strong>Anwendungsbereich:</strong>
+						<label class="radio">
+							<input type="radio" name="executeCronjobsB_type" value="0" checked>
+							Nicht anwenden
+						</label>
+						<label class="radio">
+							<input type="radio" name="executeCronjobsB_type" value="1">
+							Auf alle Serien anwenden
+						</label>
+						<label class="radio">
+							<input type="radio" name="executeCronjobsB_type" value="2">
+							Auf folgende Serien anwenden:
+						</label>
+						<select name="updateSeries[0]" id="updateSeries_0">
+							<option value="0"></option>
+							<?php foreach($series as $serie) echo '<option value="'.$serie['id'].'">'.htmlspecialchars($serie['name']).'</option>'; ?>
+						</select>
+						<div align="center"><button type="button" class="btn" onclick="addSerieField(1);">Noch eine Serie</button></div>
+						<script>
+							var staticID = 0
+							function addSerieField(i)
+							{
+								staticID = staticID + 1
+								lastID = staticID - 1
+								$("#updateSeries_"+lastID).after(
+								<?php
+									echo "'<select name=\"updateSeries['+staticID+']\" id=\"updateSeries_'+staticID+'\"><option value=\"0\"></option>";
+										foreach($series as $serie) echo "<option value=\"".$serie['id']."\">".htmlspecialchars($serie['name'])."</option>";
+									echo "</select>'";
+								?>
+								);
+							};
+						</script>
+						<br/>
+						<button type="submit" class="btn btn-primary">Cronjob ausführen</button>
+					</div>
+				</form>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li><a href="index.php?page=moderation.seriesoverview"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li><a href="index.php?page=moderation.managelinks&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li><a href="index.php?page=moderation.manageepisodes&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<li><a href="index.php?page=smoderation.manageseasons&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>
+					<li><a href="index.php?page=administration.editseries&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>
+					<li><a href="index.php?page=administration.addseries&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>
+					<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,53 @@
+<?xml version='1.0' standalone='yes'?>
+<data>
+	<main>
+		<footer>
+			<copyright><![CDATA[&copy; 2013 <a href="http://www.neophoenix.net">neophoenix.net</a>]]></copyright>
+			<data_info><![CDATA[%d Queries in %01.4f Sekunden gesendet]]></data_info>
+			<top><![CDATA[beam me up, scotty!]]></top>
+			<twitter><![CDATA[Twitter]]></twitter>
+			<faq><![CDATA[FAQ]]></faq>
+			<impressum><![CDATA[Impressum]]></impressum>
+		</footer>
+	</main>
+	<menu>
+		<button>
+			<heading><![CDATA[Startseite]]></heading>
+		</button>
+		<button>
+			<heading><![CDATA[Serien]]></heading>
+			<submenu>
+				<heading><![CDATA[Alphabetisch sortiert]]></heading>
+				<heading><![CDATA[Nach Genres]]></heading>
+				<heading><![CDATA[Nach Bewertung]]></heading>
+				<heading><![CDATA[Favoriten]]></heading>
+			</submenu>
+		</button>
+		<button>
+			<heading><![CDATA[Account]]></heading>
+			<submenu>
+				<heading><![CDATA[Nachrichten]]></heading>
+				<heading><![CDATA[Einstellungen]]></heading>
+				<heading><![CDATA[Übersicht]]></heading>
+				<heading><![CDATA[Ausloggen]]></heading>
+			</submenu>
+		</button>
+		<button><heading><![CDATA[Premium]]></heading></button>
+		<button><heading><![CDATA[FAQ]]></heading></button>
+		<button><heading><![CDATA[Blog]]></heading></button>
+		<button><heading><![CDATA[Forum]]></heading></button>
+		<modal_close><![CDATA[Schließen]]></modal_close>
+	</menu>
+	<categories>
+		<blog><![CDATA[Blog]]></blog>
+		<error><![CDATA[Error]]></error>
+		<faq><![CDATA[FAQ]]></faq>
+		<home><![CDATA[Startseite]]></home>
+		<series><![CDATA[Serien]]></series>
+		<twitter><![CDATA[Twitter]]></twitter>
+		<premium><![CDATA[Premium]]></premium>
+		<moderation><![CDATA[Moderation]]></moderation>
+		<smoderation><![CDATA[Supermoderation]]></smoderation>
+		<administration><![CDATA[Administration]]></administration>
+	</categories>
+</data>

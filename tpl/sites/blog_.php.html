@@ -1,0 +1,77 @@
+<div class="container">
+	<div class="row-fluid blog">
+		<div class="span9">
+			<div class="well">
+				<?php
+					LANG::loadFile('blog','blog');
+					define('ENTRIES_PER_PAGE',10);
+					$current_page = intval(@$_GET['p']);
+					if($current_page <= 0) $current_page = 1;
+					
+					$sql = 'SELECT COUNT(*) FROM fs_blog';
+					$result = SQL::sendQuery($sql);
+					$total_entries = mysql_result($result,0);
+					$limit_from = intval($total_entries-($current_page*ENTRIES_PER_PAGE));
+					if($limit_from <= 0) $limit_from = 0;
+					$limit_to = intval(($limit_from+ENTRIES_PER_PAGE));
+					
+					$sql = 'SELECT * FROM fs_blog ORDER BY timestamp DESC LIMIT '.$limit_from.','.$limit_to;
+					$result = SQL::sendQuery($sql);
+					while($row = mysql_fetch_array($result))
+					{
+						echo '
+						<div class="row-fluid">
+							<div class="span3">	
+								<div class="date">
+									<div class="published">
+										<div class="day pull-left">'.gmdate('d',$row['timestamp']).'</div>
+										<div class="month pull-right">'.gmdate('M Y',$row['timestamp']).'</div>
+										<div class="clearfix"></div>
+									</div>	
+								</div>
+								<div class="author"><a href="/forum/index.php?page=User&userID='.$row['userID'].'">'.sprintf(LANG::getData('blog')->entry->author,$row['userName']).'</a></div>
+								<div class="tags">
+									<i class="icon-tags"></i>';
+									foreach(explode(';',$row['tags']) as $tag)
+									{
+										if(!empty($tag))
+										{
+											echo ' <span class="label"><a href="index.php?page=blog&tag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span>';
+										}
+									}
+								echo '</div>
+							</div>	
+							<div class="span9">
+								<h3>'.htmlspecialchars($row['title']).'</h3>
+								<pre>'.htmlspecialchars($row['content']).'</pre>
+							</div>
+						</div>
+						<hr class="solid">';
+					}
+				?>
+			</div>
+		</div>
+		<div class="span3">
+			<?php
+				$tmp_tagstack = array();
+				$sql = 'SELECT tags FROM fs_blog';
+				$result = SQL::sendQuery($sql);
+				while($taglist = mysql_fetch_row($result))
+				{
+					$taglist = explode(';',$taglist[0]);
+					foreach($taglist as $tag) if(!in_array($tag,$tmp_tagstack)) $tmp_tagstack[] = $tag;
+				}
+				
+				echo '<h3>'.LANG::getData('blog')->tags->tag.'</h3>';
+				foreach($tmp_tagstack as $tag)
+				{
+					if(!empty($tag))
+					{
+						echo '<span class="label"><a href="index.php?page=blog&tag='.htmlspecialchars($tag).'">'.htmlspecialchars($tag).'</a></span> ';
+					}
+				}
+			?>
+			<hr class="dashed">
+		</div>
+	</div>
+</div>

@@ -1,0 +1,345 @@
+<div class="container">
+	<div class="row-fluid">
+		<div class="span10">
+			<div class="well">
+				<?php
+				$serieSID	= intval(@$_GET['id']);
+				$sql		= 'SELECT * FROM fs_series WHERE id='.intval($serieSID);
+				$result		= SQL::sendQuery($sql);
+				if(!mysql_num_rows($result))
+				{
+					header('Location: index.php?page=moderation.seriesoverview');
+					exit;
+				}
+				$serie = mysql_fetch_array($result);
+				
+				$serieSSID	= intval(@$_GET['ssid']);
+				$sql		= 'SELECT * FROM fs_series_seasons WHERE sid='.intval($serieSID);
+				$result		= SQL::sendQuery($sql);
+				$seasons	= array();
+				if(mysql_num_rows($result)) while($tmp_season = mysql_fetch_array($result)) $seasons[$tmp_season['ssid']] = $tmp_season;				
+				if($serieSSID <= 0 && $serieSSID > $serie['seasons'] || !isset($seasons[intval($serieSSID)])) $serieSSID = 0;
+				else
+				{
+					$season		= $seasons[$serieSSID];
+					$sql		= 'SELECT * FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($serieSSID).' ORDER BY eid ASC';
+					$result		= SQL::sendQuery($sql);
+					$episodes = array();
+					if(mysql_num_rows($result)) while($tmp_episode = mysql_fetch_array($result)) $episodes[$tmp_episode['eid']] = $tmp_episode;
+				}
+				
+				if(isset($_POST['action']) && isset($_POST['fs_token']) && USER::actionAuth())
+				{//Post actions
+					echo '<a name="top"></a>';
+					if(!strcmp($_POST['action'],'insertCSV') && isset($_POST['csv_data']) && isset($_POST['csv_structure']) && isset($_POST['csv_delimiter']))
+					{//Episoden hinzufügen
+						$delimiter = ";";
+						if(strlen($_POST['csv_delimiter']) == 1) $delimiter = $_POST['csv_delimiter'];
+						$csv_insert_result = array('success'=>0,'failed'=>0);
+						foreach(explode("\n",$_POST['csv_data']) as $row)
+						{
+							$data = str_getcsv($row,$delimiter);
+							if(sizeof($data) < 3)
+							{
+								$csv_insert_result['failed']++;
+								continue;
+							}
+							$episode = array
+								(
+									'season'	=> 0,
+									'episode'	=> 0,
+									'title_de'	=> 'Unbekannt',
+									'title_en'	=> 'Unknown'
+								);
+							for($i=0; $i<sizeof($_POST['csv_structure']); $i++)
+							{
+								if(!isset($data[$i])) continue;
+								$episode[$_POST['csv_structure'][$i]] = $data[$i];
+							}
+							$episode['season']	= intval($episode['season']);
+							$episode['episode'] = intval($episode['episode']);
+							if($episode['season'] <= 0 || $episode['season'] > $serie['seasons'] || $episode['episode'] <= 0 || $episode['episode'] > $seasons[$episode['season']]['episodes']) { $csv_insert_result['failed']++; continue; }
+							SQL::sendQuery('DELETE FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($episode['season']).' AND eid='.intval($episode['episode']));
+							$sql	= 'INSERT INTO fs_series_seasons_episodes (sid,ssid,eid,name_de,name_en) VALUES ('.intval($serieSID).','.intval($episode['season']).','.intval($episode['episode']).',"'.mysql_real_escape_string($episode['title_de']).'","'.mysql_real_escape_string($episode['title_en']).'")';
+							SQL::sendQuery($sql);
+							$csv_insert_result['success']++;
+							if($episode['season'] == $serieSSID)
+							{
+								$episodes[$episode['episode']]['ssid']		= $episode['season'];
+								$episodes[$episode['episode']]['eid']		= $episode['episode'];
+								$episodes[$episode['episode']]['name_de']	= $episode['title_de'];
+								$episodes[$episode['episode']]['name_en']	= $episode['title_en'];
+							}
+						}
+						echo '<div class="alert alert-success"><strong>CSV eingespeist!</strong> '.$csv_insert_result['success'].' erfolgreich, '.$csv_insert_result['failed'].' gescheitert</div>';
+					}
+					else if(!strcmp($_POST['action'],'editepisodes') && $serieSSID != 0 && isset($_POST['editEpisode']))
+					{//Episoden editieren
+						foreach(@$_POST['editEpisode'] as $edit_episode)
+						{
+							if(@$edit_episode['ssid'] != $serieSSID || @$edit_episode['eid'] <= 0 || @$edit_episode['eid'] > $season['episodes']) continue;
+							if(isset($episodes[$edit_episode['eid']]))
+							{
+								if(strcmp($edit_episode['title_de'],$episodes[$edit_episode['eid']]['name_de']) || strcmp($edit_episode['title_en'],$episodes[$edit_episode['eid']]['name_en']))
+								{
+									$sql = 'UPDATE fs_series_seasons_episodes SET name_de="'.mysql_real_escape_string($edit_episode['title_de']).'",name_en="'.mysql_real_escape_string($edit_episode['title_en']).'" WHERE sid='.intval($serieSID).' AND ssid='.intval($serieSSID).' AND eid='.intval($edit_episode['eid']);
+									SQL::sendQuery($sql);
+									echo '<div class="alert alert-success"><strong>Episode aktualisiert!</strong> Du hast die Episode #'.$edit_episode['eid'].' der '.$serieSSID.'. Staffel aktualisiert</div>';
+									$episodes[$edit_episode['eid']]['name_de'] = $edit_episode['title_de'];
+									$episodes[$edit_episode['eid']]['name_en'] = $edit_episode['title_en'];
+								}
+							}
+							else
+							{
+								if(!empty($edit_episode['title_de']) || !empty($edit_episode['title_en']))
+								{
+									SQL::sendQuery('DELETE FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($serieSSID).' AND eid='.intval($edit_episode['eid']));
+									$sql = 'INSERT INTO fs_series_seasons_episodes (sid,ssid,eid,name_de,name_en) VALUES ('.intval($serieSID).','.intval($serieSSID).','.intval($edit_episode['eid']).',"'.mysql_real_escape_string($edit_episode['title_de']).'","'.mysql_real_escape_string($edit_episode['title_en']).'")';
+									SQL::sendQuery($sql);
+									$episodes[$edit_episode['eid']]['ssid']		= $serieSSID;
+									$episodes[$edit_episode['eid']]['eid']		= $edit_episode['eid'];
+									$episodes[$edit_episode['eid']]['name_de']	= $edit_episode['title_de'];
+									$episodes[$edit_episode['eid']]['name_en']	= $edit_episode['title_en'];
+									echo '<div class="alert alert-success"><strong>Episode hinzugefügt!</strong> Du hast die Episode #'.$edit_episode['eid'].' der '.$serieSSID.'. Staffel hinzugefügt</div>';
+								}
+							}
+						}
+					}
+					else if(!strcmp($_POST['action'],'addepisodes') && isset($_POST['addEpisode']))
+					{//Episoden hinzufügen
+						foreach(@$_POST['addEpisode'] as $add_episode)
+						{
+							if($add_episode['ssid'] <= 0 || $add_episode['ssid'] > $serie['seasons'] || $add_episode['eid'] <= 0 || $add_episode['eid'] > $season['episodes']) continue;
+							if(isset($episodes[$add_episode['eid']])) echo '<div class="alert alert-error"><strong>Fehler!</strong> Episode #'.$add_episode['eid'].' der Staffel '.$add_episode['ssid'].' existiert bereits</div>';
+							else
+							{
+								SQL::sendQuery('DELETE FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($add_episode['ssid']).' AND eid='.intval($add_episode['eid']));
+								$sql	= 'INSERT INTO fs_series_seasons_episodes (sid,ssid,eid,name_de,name_en) VALUES ('.intval($serieSID).','.intval($add_episode['ssid']).','.intval($add_episode['eid']).',"'.mysql_real_escape_string($add_episode['title_de']).'","'.mysql_real_escape_string($add_episode['title_en']).'")';
+								SQL::sendQuery($sql);
+								echo '<div class="alert alert-success"><strong>Episode hinzugefügt!</strong> Du hast die Episode #'.$add_episode['eid'].' der Staffel '.$add_episode['ssid'].' hinzugefügt</div>';
+								if($add_episode['ssid'] == $serieSSID)
+								{
+									$episodes[$add_episode['eid']]['ssid']		= $add_episode['ssid'];
+									$episodes[$add_episode['eid']]['eid']		= $add_episode['eid'];
+									$episodes[$add_episode['eid']]['name_de']	= $add_episode['title_de'];
+									$episodes[$add_episode['eid']]['name_en']	= $add_episode['title_en'];
+								}
+							}
+						}
+					}
+				}
+				else if(isset($_GET['action']) && isset($_GET['fs_token']) && USER::actionAuth())
+				{//Get actions
+					if(!strcmp($_GET['action'],'deleteepisode'))
+					{
+						$deleteEID = intval($_GET['eid']);
+						if($deleteEID >= 1)
+						{
+							$sql 	= 'DELETE FROM fs_series_seasons_episodes WHERE sid='.intval($serieSID).' AND ssid='.intval($_GET['ssid']).' AND eid='.intval($deleteEID);
+							SQL::sendQuery($sql);
+							echo '<div class="alert alert-success">
+								<button type="button" class="close" data-dismiss="alert">×</button>
+								<strong>Episode gelöscht!</strong> Du hast Episode #'.$deleteEID.' der '.$_GET['ssid'].'. Staffel gelöscht
+							</div>';
+							unset($episodes[$deleteEID]);
+						}
+					}
+				}
+				
+				echo '<div align="center"><img src="img/series/cut_covers/'.$serie['cover'].'_200x200.png" class="img-polaroid"/></div>
+				<h2>'.htmlspecialchars($serie['name']).'</h2>			
+				<a name="editseasons"></a>
+				<div class="well">
+					<h3>Staffel auswählen</h3>
+					<select onChange="document.location = this.value" value="Auswahl">
+						<option value="#">Bitte wähle eine Staffel</option>';
+							foreach($seasons as $tmp_season)
+							{
+								echo '<option value="index.php?page=moderation.manageepisodes&id='.$serieSID.'&ssid='.$tmp_season['ssid'].'"';
+								if($tmp_season['ssid'] == $serieSSID) echo ' selected';
+								echo '>Staffel #'.$tmp_season['ssid'].'</option>';
+							}
+						echo '</select> - wähle eine Staffel, dessen Episoden du bearbeiten möchtest';
+					if($serieSSID != 0)
+					{
+						echo '
+						<h3>Episoden bearbeiten</h3>
+						<form method="post" action "index.php?page=moderation.managesepisodes&id='.$serieSID.'&ssid='.$serieSSID.'">
+							<input type="hidden" name="fs_token"	value="'.USER::$user['fs_token'].'"/>
+							<input type="hidden" name="action"		value="editepisodes"/>'; ?>
+							<table class="table table-hover">
+								<thead>
+									<tr>
+										<th style="width:20px">#</th>
+										<th style="width:70px">Staffel</th>
+										<th style="width:70px">Episode</th>
+										<th>Titel <img src="img/icons/languageDeS.png"/></th>
+										<th>Titel <img src="img/icons/languageEnS.png"/></th>
+									</tr>
+								</thead>
+								<tbody><?php
+									$last_episode	= 0;
+									$loop			= 0;
+									foreach($episodes as $episode)
+									{
+										if(++$last_episode < $episode['eid'])
+										{
+											for($i=0; $i<($episode['eid']-$last_episode); $i++)
+											{
+												echo '<tr class="error" id="editEpisode_'.$loop.'">
+													<input style="width:30px" name="editEpisode['.$loop.'][ssid]" type="hidden" value="'.$serieSSID.'"/>
+													<input style="width:30px" name="editEpisode['.$loop.'][eid]" type="hidden" value="'.($last_episode+$i).'"/>
+													<td></td>
+													<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$serieSSID.'" disabled/></div></td>
+													<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" type="text" value="'.($last_episode+$i).'" disabled/></div></td>
+													<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_de]"></textarea></td>
+													<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_en]"></textarea></td>
+												</tr>';
+												$loop++;
+											}
+										}
+										echo '<tr id="editEpisode_'.$loop.'">
+											<input style="width:30px" name="editEpisode['.$loop.'][ssid]" type="hidden" value="'.$season['ssid'].'"/>
+											<input style="width:30px" name="editEpisode['.$loop.'][eid]" type="hidden" value="'.$episode['eid'].'"/>
+											<td><a href="index.php?page=moderation.manageepisodes&id='.$serieSID.'&ssid='.$season['ssid'].'&action=deleteepisode&eid='.$episode['eid'].'&fs_token='.USER::$user['fs_token'].'" onclick="return confirmAction('.$episode['eid'].')"><img src="img/icons/deleteS.png"/></a></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$serieSSID.'" disabled/></div></td>
+											<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" type="text" value="'.$episode['eid'].'" disabled/></div></td>
+											<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_de]">'.htmlspecialchars($episode['name_de']).'</textarea></td>
+											<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_en]">'.htmlspecialchars($episode['name_en']).'</textarea></td>
+										</tr>';
+										$last_episode = $episode['eid'];
+										$loop++;
+									}
+									if($last_episode < $season['episodes'])
+									{
+										for($i=($last_episode+1); $i<=$season['episodes']; $i++)
+										{											
+											echo '<tr class="error" id="editEpisode_'.$loop.'">
+												<input style="width:30px" name="editEpisode['.$loop.'][ssid]" type="hidden" value="'.$serieSSID.'"/>
+												<input style="width:30px" name="editEpisode['.$loop.'][eid]" type="hidden" value="'.$i.'"/>
+												<td></td>
+												<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" type="text" value="'.$serieSSID.'" disabled/></div></td>
+												<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" type="text" value="'.$i.'" disabled/></div></td>
+												<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_de]"></textarea></td>
+												<td><textarea style="width:100%" name="editEpisode['.$loop.'][title_en]"></textarea></td>
+											</tr>';
+											$loop++;
+										}
+									}
+								echo '
+								</tbody>
+							</table>
+							<button type="submit" class="btn btn-primary">Staffeln bearbeiten</button>
+						</form>
+						<script>
+							function confirmAction(ssid)
+							{
+								var confirmed = confirm("Möchtest du die Episode #"+ssid+" wirklich entfernen?");
+								return confirmed;
+							}
+						</script>';
+					}
+				echo '
+				</div>
+				<a name="addepisodes"></a>
+				<div class="well">
+					<h3>Episoden hinzufügen</h3>
+					<form method="post" action "index.php?page=moderation.manageepisodes&id='.$serieSID.'&ssid='.$serieSSID.'>
+						<input type="hidden" name="fs_token"	value="'.USER::$user['fs_token'].'"/>
+						<input type="hidden" name="action"		value="addepisodes"/>';
+						?>
+						<table class="table table-hover">
+							<thead>
+								<tr>
+									<th style="width:70px">Staffel</th>
+									<th style="width:70px">Episode</th>
+									<th>Titel (<img src="img/icons/languageDeS.png"/>)</th>
+									<th>Titel (<img src="img/icons/languageEnS.png"/>)</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr id="addEpisode_0">
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">S</span><input style="width:30px" id="addEpisode_0_id"		name="addEpisode[0][ssid]" type="text" value="<?php echo intval(@$serieSSID); ?>"></div></td>
+									<td><div style="width:30px" class="input-prepend"><span class="add-on">E</span><input style="width:30px" id="addEpisode_0_episode"	name="addEpisode[0][eid]" type="text" value="0"></div></td>
+									<td><textarea id="addEpisode_0_title_de"	style="width:100%" name="addEpisode[0][title_de]">Unbekannt</textarea></td>
+									<td><textarea id="addEpisode_0_title_en"	style="width:100%" name="addEpisode[0][title_en]">Unknown</textarea></td>
+								</tr>
+							</tbody>
+						</table>
+						<div align="center"><button type="button" class="btn" onclick="addEpisodeField(1);">Noch eine Episode</button></div>
+						<button type="submit" class="btn btn-primary">Episoden hinzufügen</button>
+					</form>
+					<script>
+						var staticID = 0
+						function addEpisodeField(i)
+						{
+							staticID = staticID + 1
+							lastID = staticID - 1
+							var last_id_season = document.getElementById('addEpisode_'+lastID+'_id');
+							this_season_id = parseInt(last_id_season.value) + 1
+							$("#addEpisode_"+lastID).after(
+							<?php
+								echo "'<tr id=\"addEpisode_'+staticID+'\">'+
+									'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">S</span><input style=\"width:30px\" id=\"addEpisode_'+staticID+'_id\"		name=\"addEpisode['+staticID+'][ssid]\" type=\"text\" value=\"".intval(@$serieSSID)."\"></div></td>'+
+									'<td><div style=\"width:30px\" class=\"input-prepend\"><span class=\"add-on\">E</span><input style=\"width:30px\" id=\"addEpisode_'+staticID+'_episode\"	name=\"addEpisode['+staticID+'][eid]\" type=\"text\" value=\"'+staticID+'\"></div></td>'+
+									'<td><textarea id=\"addEpisode_'+staticID+'_title_de\"	style=\"width:100%\" name=\"addEpisode['+staticID+'][title_de]\">Unbekannt</textarea></td>'+
+									'<td><textarea id=\"addEpisode_'+staticID+'_title_en\"	style=\"width:100%\" name=\"addEpisode['+staticID+'][title_en]\">Unknown</textarea></td>'+
+								'</tr>'";
+							?>
+							);
+						};
+					</script>
+				</div>
+				<div class="well">
+					<script src="js/jquery-ui-1-10-2.js"></script>
+					<style>
+						#sortable > div { float: left; }
+						#draggable1 { width: 70px; padding: 0.5em; }
+						#draggable2 { width: 70px; padding: 0.5em; }
+						#draggable3 { width: 70px; padding: 0.5em; }
+						#draggable4 { width: 70px; padding: 0.5em; }
+					</style>
+					<script>
+						$(function()
+						{
+							$("#sortable").sortable();
+							$("#sortable").disableSelection();
+						});
+					</script>
+					<h3>CSV-Datei einspeisen</h3>
+					<form method="post" action="index.php?page=moderation.manageepisodes&id=<?php echo $serieSID.'&ssid='.$serieSSID; ?>">
+						<h4>Struktur der CSV</h4>
+						<input type="hidden" name="action" value="insertCSV"/>
+						<input type="hidden" name="fs_token" value="<?php echo USER::$user['fs_token']; ?>"/>
+						<div id="sortable">
+							<div id="draggable1"><input type="hidden" name="csv_structure[]" value="season"/>Staffel</div>
+							<div id="draggable2"><input type="hidden" name="csv_structure[]" value="episode"/>Episode</div>
+							<div id="draggable3"><input type="hidden" name="csv_structure[]" value="title_de"/>Titel (<img src="img/icons/languageDeS.png"/>)</div>
+							<div id="draggable4"><input type="hidden" name="csv_structure[]" value="title_en"/>Titel (<img src="img/icons/languageEnS.png"/>)</div>
+						</div>
+						<br/><br/>
+						<h4>Verwendeter Delimiter</h4>
+						<input type="text" name="csv_delimiter" value=";" style="width:20px"/> Standartmäßig ein Semikolon ";"
+						<h4>CSV-Input</h4>
+						<textarea name="csv_data" rows="5" style="width:100%"></textarea>
+						<button type="submit" class="btn btn-primary">CSV einspeisen</button>
+					</form>
+				</div>
+			</div>
+		</div>
+		<div class="span2">
+			<h4 class="title grey">Kategorien</h4>
+			<div class="clearfix bottom-20 margin-top-10">
+				<ul class="nav nav-list">
+					<li><a href="index.php?page=moderation.seriesoverview"><i class="icon-chevron-left"></i>Serienübersicht</a></li>
+					<li><a href="index.php?page=moderation.managelinks&id=<?php echo $serieSID; ?>"><i class="icon-chevron-left"></i>Links verwalten</a></li>
+					<li class="active bold"><a href="#"><i class="icon-chevron-left"></i>Episoden verwalten</a></li>
+					<?php if(VALIDATION::canAccessPage(array('smoderation','manageseasons')))	echo '<li><a href="index.php?page=smoderation.manageseasons&id='.$serieSID.'"><i class="icon-chevron-left"></i>Staffeln verwalten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','editseries')))	echo '<li><a href="index.php?page=administration.editseries&id='.$serieSID.'"><i class="icon-chevron-left"></i>Serie bearbeiten</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','addseries')))	echo '<li><a href="index.php?page=administration.addseries"><i class="icon-chevron-left"></i>Serie hinzufügen</a></li>'; ?>
+					<?php if(VALIDATION::canAccessPage(array('administration','cronjobs')))		echo '<li><a href="index.php?page=administration.cronjobs&id='.$serieSID.'"><i class="icon-chevron-left"></i>Cronjobs ausführen</a></li>'; ?>
+				</ul>
+			</div>
+		</div>
+	</div>
+</div>
